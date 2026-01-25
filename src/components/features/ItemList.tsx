@@ -31,7 +31,6 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
   
-  // LOADING STATE
   const [isProcessing, setIsProcessing] = useState(false);
 
   const formatDate = (dateString: string) => {
@@ -42,6 +41,12 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
 
   // 1. FILTROVÁNÍ
   const filteredItems = initialItems.filter((item) => {
+    // --- NOVÁ PODMÍNKA ZDE ---
+    // Pokud chceme vracet, ale ještě jsme nepotvrdili jméno, neukazujeme NIC.
+    if (mode === 'return' && !isReturnNameConfirmed) {
+        return false;
+    }
+
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
                           (item.box && item.box.toLowerCase().includes(search.toLowerCase()));
     
@@ -83,7 +88,6 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
     });
   };
 
-  // Funkce pro přidání VŠEHO (do limitu)
   const addAllToCart = (id: string, limit: number) => {
     const currentInCart = cart[id] || 0;
     const remaining = limit - currentInCart;
@@ -125,13 +129,28 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
       
       if (mode === 'return' && !isReturnNameConfirmed) {
         return (
-          <div className="bg-white border-2 border-green-500 p-4 rounded-2xl mb-4 shadow-lg">
+          <div className="bg-white border-2 border-green-500 p-4 rounded-2xl mb-4 shadow-lg animate-in fade-in slide-in-from-top-2">
             <div className="flex justify-between items-center mb-3">
               <h3 className="font-bold flex items-center gap-2 text-slate-800"><ArrowDownLeft className="text-green-500"/>KDO VRACÍ?</h3>
               <button onClick={() => { setMode('view'); setBorrowerName(""); }}><X className="w-5 h-5 text-slate-500"/></button>
             </div>
-            <input placeholder="Zadejte jméno..." value={borrowerName} onChange={e => setBorrowerName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3 text-slate-900 font-bold focus:ring-2 focus:ring-green-500 outline-none" autoFocus />
-            <button onClick={() => { if(!borrowerName) return alert("Zadej jméno!"); setIsReturnNameConfirmed(true); }} className="w-full bg-green-500 text-white font-bold py-3 rounded-xl">Pokračovat k výběru</button>
+            <p className="text-sm text-slate-500 mb-2">Zadejte jméno pro zobrazení vypůjčených položek.</p>
+            <input 
+                placeholder="Zadejte jméno..." 
+                value={borrowerName} 
+                onChange={e => setBorrowerName(e.target.value)} 
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' && borrowerName) setIsReturnNameConfirmed(true);
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3 text-slate-900 font-bold focus:ring-2 focus:ring-green-500 outline-none" 
+                autoFocus 
+            />
+            <button 
+                onClick={() => { if(!borrowerName) return alert("Zadej jméno!"); setIsReturnNameConfirmed(true); }} 
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition-colors"
+            >
+                Zobrazit výpůjčky
+            </button>
           </div>
         );
       }
@@ -251,7 +270,7 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
                   )}
                 </div>
 
-                {/* 2. INFO (Box/Ks) - Lehce zúženo pro místo */}
+                {/* 2. INFO */}
                 <div className="flex flex-col items-center justify-center border-l border-r border-slate-100 px-1.5 min-w-[45px]">
                    <div className="text-[9px] text-slate-400 uppercase leading-none mb-1">Box {item.box || '-'}</div>
                    <div className={`text-lg font-black leading-none ${item.quantity === 0 ? 'text-red-500' : 'text-slate-800'}`}>
@@ -318,8 +337,12 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
           );
         })}
         
+        {/* Prázdný stav při hledání */}
         {mode === 'return' && isReturnNameConfirmed && sortedItems.length === 0 && (
-          <div className="text-center py-10"><p className="text-slate-500 font-medium">Nic půjčeno. 👍</p><button onClick={() => setMode('view')} className="mt-2 text-sm text-blue-600 font-bold underline">Zpět</button></div>
+          <div className="text-center py-10 animate-in fade-in">
+              <p className="text-slate-500 font-medium text-lg">Žádné výpůjčky nenalezeny. 👍</p>
+              <button onClick={() => setMode('view')} className="mt-4 text-sm text-blue-600 font-bold underline">Zpět na přehled</button>
+          </div>
         )}
       </div>
     </div>

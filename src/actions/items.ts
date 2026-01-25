@@ -49,34 +49,51 @@ export async function updateItemQuantity(itemId: string, delta: number) {
   return { success: true };
 }
 
-// --- PŮJČOVÁNÍ ---
+// --- PŮJČOVÁNÍ (S MERGE LOGIKOU) ---
 
 export async function borrowItems(borrowerName: string, cart: Record<string, number>) {
   const supabase = await createClient();
   
-  for (const [itemId, qty] of Object.entries(cart)) {
+  for (const [itemIdStr, qty] of Object.entries(cart)) {
     if (qty <= 0) continue;
+    const itemId = parseInt(itemIdStr);
 
-    // 1. Zjistit dostupnost
+    // 1. Zjistit dostupnost na skladě
     const { data: item } = await supabase.from('items').select('quantity').eq('id', itemId).single();
     if (!item || item.quantity < qty) continue;
 
-    // 2. Odečíst sklad
+    // 2. Odečíst ze skladu
     await supabase.from('items').update({ quantity: item.quantity - qty }).eq('id', itemId);
 
-    // 3. Vytvořit záznam
-    await supabase.from('loans').insert({
-      item_id: parseInt(itemId),
-      borrower_name: borrowerName,
-      quantity: qty
-    });
+    // 3. MERGE LOGIKA: Zjistit, jestli už si to tento člověk půjčil
+    const { data: existingLoan } = await supabase
+      .from('loans')
+      .select('id, quantity')
+      .eq('item_id', itemId)
+      .eq('borrower_name', borrowerName)
+      .maybeSingle(); // Použijeme maybeSingle, aby to nehodilo error, když nic nenajde
+
+    if (existingLoan) {
+      // A) Už má půjčeno -> PŘIČTEME k existujícímu záznamu
+      await supabase
+        .from('loans')
+        .update({ quantity: existingLoan.quantity + qty })
+        .eq('id', existingLoan.id);
+    } else {
+      // B) Nemá půjčeno -> VYTVOŘÍME nový záznam
+      await supabase.from('loans').insert({
+        item_id: itemId,
+        borrower_name: borrowerName,
+        quantity: qty
+      });
+    }
   }
 
   revalidatePath('/');
   return { success: true };
 }
 
-// --- NOVÉ: VRÁCENÍ KONKRÉTNÍ OSOBOU ---
+// --- VRÁCENÍ (BEZE ZMĚNY, FUNGUJE I S MERGE) ---
 
 export async function returnItemsFromBorrower(borrowerName: string, returnCart: Record<string, number>) {
   const supabase = await createClient();
@@ -85,22 +102,21 @@ export async function returnItemsFromBorrower(borrowerName: string, returnCart: 
     let remainingToReturn = qtyToReturn;
     const itemId = parseInt(itemIdStr);
 
-    // 1. Najdeme aktivní výpůjčky PRO TOTO KONKRÉTNÍ JMÉNO
+    // Najdeme půjčky daného člověka
     const { data: loans } = await supabase
       .from('loans')
       .select('*')
       .eq('item_id', itemId)
-      .eq('borrower_name', borrowerName) // Klíčová změna: filtrujeme podle jména
+      .eq('borrower_name', borrowerName)
       .order('borrowed_at', { ascending: true });
 
     if (!loans || loans.length === 0) continue;
 
-    // 2. Postupně umořujeme dluhy této osoby
     for (const loan of loans) {
       if (remainingToReturn <= 0) break;
 
       if (loan.quantity <= remainingToReturn) {
-        // Smazat celou výpůjčku
+        // Smazat celou půjčku
         await supabase.from('loans').delete().eq('id', loan.id);
         remainingToReturn -= loan.quantity;
       } else {
@@ -110,7 +126,7 @@ export async function returnItemsFromBorrower(borrowerName: string, returnCart: 
       }
     }
 
-    // 3. Vrátíme fyzicky kusy na sklad
+    // Vrátíme fyzicky kusy na sklad
     const { data: item } = await supabase.from('items').select('quantity').eq('id', itemId).single();
     if (item) {
       await supabase.from('items').update({ quantity: item.quantity + qtyToReturn }).eq('id', itemId);

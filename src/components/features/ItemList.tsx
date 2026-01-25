@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react";
-import { Search, Plus, ArrowUpRight, ArrowDownLeft, X, Minus, User, ArrowUpDown } from "lucide-react";
+import { Search, Plus, ArrowUpRight, ArrowDownLeft, X, Minus, User, ArrowUpDown, Loader2 } from "lucide-react";
 import ItemActions from "@/components/features/ItemActions";
 import { borrowItems, returnItemsFromBorrower, createItem } from "@/actions/items";
 
@@ -30,6 +30,9 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
   
   const [cart, setCart] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
+  
+  // NOVÝ STATE PRO LOADING OVERLAY
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
@@ -49,30 +52,25 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
     return matchesSearch;
   });
 
-  // 2. ŘAZENÍ (KOMPLETNÍ)
+  // 2. ŘAZENÍ
   const sortedItems = [...filteredItems].sort((a, b) => {
     const aIsAvailable = a.quantity > 0;
     const bIsAvailable = b.quantity > 0;
 
     switch (sortBy) {
-      case "available": // Dostupné nahoře
+      case "available": 
         if (aIsAvailable && !bIsAvailable) return -1;
         if (!aIsAvailable && bIsAvailable) return 1;
-        return a.name.localeCompare(b.name); // Uvnitř skupiny podle abecedy
+        return a.name.localeCompare(b.name);
         
-      case "unavailable": // Nedostupné nahoře
+      case "unavailable": 
         if (!aIsAvailable && bIsAvailable) return -1;
         if (aIsAvailable && !bIsAvailable) return 1;
         return a.name.localeCompare(b.name);
 
-      case "name_asc": // Čistá abeceda A-Z
-        return a.name.localeCompare(b.name);
-
-      case "name_desc": // Čistá abeceda Z-A
-        return b.name.localeCompare(a.name);
-        
-      default:
-        return 0;
+      case "name_asc": return a.name.localeCompare(b.name);
+      case "name_desc": return b.name.localeCompare(a.name);
+      default: return 0;
     }
   });
 
@@ -86,16 +84,33 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
   };
 
   const handleConfirmAction = async () => {
-    if (mode === 'borrow') {
-      if (!borrowerName) return alert("Musíš zadat jméno!");
-      await borrowItems(borrowerName, cart);
-    } else if (mode === 'return') {
-      await returnItemsFromBorrower(borrowerName, cart);
+    // ZAPNEME LOADING
+    setIsProcessing(true);
+
+    try {
+      if (mode === 'borrow') {
+        if (!borrowerName) {
+            alert("Musíš zadat jméno!");
+            setIsProcessing(false); // Vypnout pokud chyba
+            return;
+        }
+        await borrowItems(borrowerName, cart);
+      } else if (mode === 'return') {
+        await returnItemsFromBorrower(borrowerName, cart);
+      }
+      
+      // Reset všeho po úspěchu
+      setMode('view');
+      setCart({});
+      setBorrowerName("");
+      setIsReturnNameConfirmed(false);
+    } catch (error) {
+      console.error("Chyba:", error);
+      alert("Něco se pokazilo.");
+    } finally {
+      // VYPNEME LOADING (vždy, i když nastane chyba)
+      setIsProcessing(false);
     }
-    setMode('view');
-    setCart({});
-    setBorrowerName("");
-    setIsReturnNameConfirmed(false);
   };
 
   // --- HORNÍ MENU ---
@@ -145,7 +160,7 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
     return (
       <div className="bg-white p-4 rounded-2xl shadow-lg border-2 border-blue-500 mb-4 animate-in zoom-in">
         <h3 className="font-bold mb-3 text-lg">Přidat</h3>
-        <form action={async (fd) => { await createItem(fd); setIsAdding(false); }} className="space-y-3">
+        <form action={async (fd) => { setIsProcessing(true); await createItem(fd); setIsProcessing(false); setIsAdding(false); }} className="space-y-3">
             <input name="name" autoFocus placeholder="Název" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-800" required />
             <div className="flex gap-2">
                 <input name="box" placeholder="Box" className="w-1/3 p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm" />
@@ -162,6 +177,19 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
 
   return (
     <div>
+      {/* --- LOADING OVERLAY --- */}
+      {isProcessing && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-200">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in duration-200">
+            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+            <div className="text-center">
+              <h3 className="text-xl font-black text-slate-800">Pracuji na tom...</h3>
+              <p className="text-slate-400 text-sm font-medium">Zapisuji změny do skladu</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {renderTopMenu()}
 
       <div className="flex gap-2 mb-4">

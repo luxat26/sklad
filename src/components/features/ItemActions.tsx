@@ -1,57 +1,54 @@
 'use client'
 
 import { updateItemQuantity, deleteItem } from "@/actions/items";
-import { Plus, Minus, Trash2, Loader2 } from "lucide-react";
-import { useTransition } from "react";
+import { Minus, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 export default function ItemActions({ itemId, quantity }: { itemId: string, quantity: number }) {
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
 
-  const handleUpdate = (delta: number) => {
-    startTransition(async () => {
-      await updateItemQuantity(itemId, delta);
-    });
+  const handleUpdate = async (delta: number) => {
+    setLoading(true);
+    await updateItemQuantity(itemId, delta);
+    setLoading(false);
   };
 
-  const handleDelete = () => {
-    if (confirm("Opravdu smazat?")) {
-      startTransition(async () => {
-        await deleteItem(itemId);
-      });
+  const handleDelete = async () => {
+    if (confirm("Opravdu smazat tuto položku?")) {
+      setLoading(true);
+      await deleteItem(itemId);
+      setLoading(false);
     }
   };
 
   return (
-    // Změna: h-full -> h-auto, flex-col -> flex-row
-    <div className="flex items-center bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-14">
-      
-      {/* PLUS */}
+    <div className="flex items-center gap-1">
+      {/* Tlačítko PLUS */}
       <button 
-        disabled={isPending}
-        onClick={() => handleUpdate(1)}
-        className="h-full px-5 flex items-center justify-center text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors border-r border-slate-100"
+        onClick={() => handleUpdate(1)} 
+        disabled={loading}
+        className="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 rounded-lg active:scale-90 transition-transform border border-blue-100"
       >
-        <Plus className="w-5 h-5 stroke-[3px]" />
+        <Plus className="w-4 h-4 stroke-[3px]" />
       </button>
 
-      {/* MÍNUS */}
+      {/* Tlačítko MÍNUS */}
       <button 
-        disabled={isPending || quantity <= 0}
-        onClick={() => handleUpdate(-1)}
-        className="h-full px-5 flex items-center justify-center text-slate-500 hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-slate-100 disabled:opacity-30"
+        onClick={() => handleUpdate(-1)} 
+        disabled={loading || quantity === 0}
+        className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg active:scale-90 transition-transform border border-slate-200"
       >
-        <Minus className="w-5 h-5 stroke-[3px]" />
+        <Minus className="w-4 h-4 stroke-[3px]" />
       </button>
 
-      {/* KOŠ */}
+      {/* Tlačítko KOŠ (Červené, jen ikona) */}
       <button 
-        disabled={isPending}
-        onClick={handleDelete}
-        className="h-full px-4 flex items-center justify-center text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+        onClick={handleDelete} 
+        disabled={loading}
+        className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-500 rounded-lg active:scale-90 transition-transform border border-red-100 ml-1"
       >
-        {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        <Trash2 className="w-4 h-4" />
       </button>
-
     </div>
   );
 }

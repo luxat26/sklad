@@ -1,0 +1,16 @@
+/src
+  /app                  # Next.js App Router (routování a layouty)
+    /(auth)             # Route group pro přihlášení
+    /(dashboard)        # Route group pro chráněnou část skladu
+    /api                # Pouze pro externí webhooky nebo specifické endpointy
+  /components           # UI komponenty
+    /ui                 # Atomické prvky (tlačítka, inputy) - např. ze shadcn/ui
+    /features           # Komplexní celky (skladová karta, seznam položek)
+    /layout             # Navigace, patičky, mobilní menu
+  /lib                  # Sdílené utility
+    /supabase           # Konfigurace klienta (server, client, middleware)
+    /utils              # Pomocné funkce (formátování dat, Tailwind merge)
+  /actions              # Server Actions (Business logika a mutace dat)
+  /services             # Databázové dotazy (čtení z DB, abstrakce nad Supabase)
+  /types                # Globální TypeScript rozhraní a typy z DB
+  /hooks                # Reagování na klientské eventy (pokud bude potřeba)

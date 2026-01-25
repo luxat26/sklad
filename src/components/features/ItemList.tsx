@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react";
-import { Search, Plus, ArrowUpRight, ArrowDownLeft, X, Minus, User, ArrowUpDown, Loader2 } from "lucide-react";
+import { Search, Plus, ArrowUpRight, ArrowDownLeft, X, Minus, User, ArrowUpDown, Loader2, ChevronsRight } from "lucide-react";
 import ItemActions from "@/components/features/ItemActions";
 import { borrowItems, returnItemsFromBorrower, createItem } from "@/actions/items";
 
@@ -31,7 +31,7 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
   
-  // NOVÝ STATE PRO LOADING OVERLAY
+  // LOADING STATE
   const [isProcessing, setIsProcessing] = useState(false);
 
   const formatDate = (dateString: string) => {
@@ -83,23 +83,28 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
     });
   };
 
-  const handleConfirmAction = async () => {
-    // ZAPNEME LOADING
-    setIsProcessing(true);
+  // Funkce pro přidání VŠEHO (do limitu)
+  const addAllToCart = (id: string, limit: number) => {
+    const currentInCart = cart[id] || 0;
+    const remaining = limit - currentInCart;
+    if (remaining > 0) {
+      updateCart(id, remaining, limit);
+    }
+  };
 
+  const handleConfirmAction = async () => {
+    setIsProcessing(true);
     try {
       if (mode === 'borrow') {
         if (!borrowerName) {
             alert("Musíš zadat jméno!");
-            setIsProcessing(false); // Vypnout pokud chyba
+            setIsProcessing(false);
             return;
         }
         await borrowItems(borrowerName, cart);
       } else if (mode === 'return') {
         await returnItemsFromBorrower(borrowerName, cart);
       }
-      
-      // Reset všeho po úspěchu
       setMode('view');
       setCart({});
       setBorrowerName("");
@@ -108,7 +113,6 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
       console.error("Chyba:", error);
       alert("Něco se pokazilo.");
     } finally {
-      // VYPNEME LOADING (vždy, i když nastane chyba)
       setIsProcessing(false);
     }
   };
@@ -247,8 +251,8 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
                   )}
                 </div>
 
-                {/* 2. INFO */}
-                <div className="flex flex-col items-center justify-center border-l border-r border-slate-100 px-2 min-w-[50px]">
+                {/* 2. INFO (Box/Ks) - Lehce zúženo pro místo */}
+                <div className="flex flex-col items-center justify-center border-l border-r border-slate-100 px-1.5 min-w-[45px]">
                    <div className="text-[9px] text-slate-400 uppercase leading-none mb-1">Box {item.box || '-'}</div>
                    <div className={`text-lg font-black leading-none ${item.quantity === 0 ? 'text-red-500' : 'text-slate-800'}`}>
                      {mode === 'view' ? item.quantity : (mode === 'borrow' ? item.quantity : totalBorrowed)}
@@ -262,23 +266,38 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
                    <ItemActions itemId={item.id.toString()} quantity={item.quantity} />
                 ) : (
                     <div className={`flex items-center gap-1 p-1 rounded-lg ${mode === 'borrow' ? 'bg-orange-50' : 'bg-green-50'}`}>
+                        {/* Minus */}
                         <button onClick={() => updateCart(item.id.toString(), -1, maxLimit)} className={`w-7 h-7 flex items-center justify-center rounded-md ${mode === 'borrow' ? 'text-orange-600 bg-white shadow-sm' : 'text-green-600 bg-white shadow-sm'}`}>
                           <Minus className="w-3 h-3 stroke-[3px]"/>
                         </button>
                         
-                        <span className={`w-6 text-center font-bold text-sm ${mode === 'borrow' ? 'text-orange-700' : 'text-green-700'}`}>
+                        {/* Počet */}
+                        <span className={`w-5 text-center font-bold text-sm ${mode === 'borrow' ? 'text-orange-700' : 'text-green-700'}`}>
                           {cart[item.id.toString()] || 0}
                         </span>
                         
+                        {/* Plus */}
                         <button onClick={() => updateCart(item.id.toString(), 1, maxLimit)} disabled={cart[item.id.toString()] === maxLimit} className={`w-7 h-7 flex items-center justify-center rounded-md ${mode === 'borrow' ? 'text-orange-600 bg-white shadow-sm' : 'text-green-600 bg-white shadow-sm'}`}>
                           <Plus className="w-3 h-3 stroke-[3px]"/>
+                        </button>
+
+                        {/* ODDĚLOVAČ */}
+                        <div className="w-px h-5 bg-black/5 mx-0.5"></div>
+
+                        {/* TLAČÍTKO VŠE (MAX) */}
+                        <button 
+                            onClick={() => addAllToCart(item.id.toString(), maxLimit)} 
+                            disabled={cart[item.id.toString()] === maxLimit}
+                            className={`w-7 h-7 flex flex-col items-center justify-center rounded-md active:scale-95 transition-transform ${mode === 'borrow' ? 'text-orange-700 bg-orange-200/50 hover:bg-orange-200' : 'text-green-700 bg-green-200/50 hover:bg-green-200'}`}
+                        >
+                            <ChevronsRight className="w-4 h-4 stroke-[3px]" />
                         </button>
                     </div>
                 )}
                 </div>
               </div>
 
-              {/* SEZNAM DLUŽNÍKŮ S DATEM */}
+              {/* SEZNAM DLUŽNÍKŮ */}
               {item.loans.length > 0 && (mode === 'view' || mode === 'return') && (
                 <div className="bg-slate-50 border-t border-slate-100 px-3 py-2 flex flex-wrap gap-2">
                   {item.loans.map(loan => (

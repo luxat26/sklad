@@ -1,30 +1,66 @@
+'use client'
+
 import { loginAction } from "@/actions/auth";
+import { Package, Lock } from "lucide-react";
+import { useState } from "react";
 
-/**
- * Jednoduchá login stránka optimalizovaná pro mobil.
- */
 export default function LoginPage() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-slate-50">
-      <div className="w-full max-w-sm space-y-8 bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Virtuální Sklad</h1>
-          <p className="text-sm text-slate-500 mt-2">Zadejte heslo pro přístup</p>
-        </div>
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-        <form action={loginAction} className="space-y-4">
-          <input
-            type="password"
-            name="password"
-            placeholder="Heslo"
-            required
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-          />
+  // Wrapper, který opraví tu chybu "Type error"
+  const handleSubmit = async (formData: FormData) => {
+    setIsLoading(true);
+    setError("");
+    
+    // Zavoláme server action
+    const result = await loginAction(formData);
+    
+    // Pokud vrátí chybu, zobrazíme ji. Pokud ne (úspěch), proběhne redirect na serveru.
+    if (result?.error) {
+      setError(result.error);
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-sm p-8 rounded-3xl shadow-2xl">
+        <div className="flex justify-center mb-6">
+          <div className="bg-blue-50 p-4 rounded-full">
+            <Package className="w-10 h-10 text-blue-600" />
+          </div>
+        </div>
+        
+        <h1 className="text-2xl font-black text-center text-slate-800 mb-2">Vítej ve skladu</h1>
+        <p className="text-center text-slate-400 text-sm mb-8 font-medium">Pro přístup zadej heslo</p>
+
+        <form action={handleSubmit} className="space-y-4">
+          <div>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="password"
+                name="password"
+                placeholder="Heslo"
+                required
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-red-500 text-sm font-bold text-center bg-red-50 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full bg-slate-900 text-white py-3 rounded-xl font-medium hover:bg-slate-800 active:scale-[0.98] transition-all"
+            disabled={isLoading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all active:scale-95 disabled:opacity-50"
           >
-            Vstoupit
+            {isLoading ? "Ověřuji..." : "Vstoupit"}
           </button>
         </form>
       </div>

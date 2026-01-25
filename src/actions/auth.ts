@@ -1,24 +1,26 @@
 'use server'
 
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-/**
- * Ověří zadané heslo a nastaví session cookie.
- */
 export async function loginAction(formData: FormData) {
-  const password = formData.get('password')
+  const password = formData.get("password") as string;
 
-  if (password === process.env.WAREHOUSE_PASSWORD) {
-    const cookieStore = await cookies()
-    // Nastavíme cookie na 30 dní
-    cookieStore.set('warehouse_auth', 'true', { 
+  // TADY SI NASTAV SVOJE HESLO (zatím natvrdo v kódu)
+  const MY_SECRET_PASSWORD = "sklad"; 
+
+  if (password === MY_SECRET_PASSWORD) {
+    // Uložíme cookie, že je uživatel přihlášený
+    const cookieStore = await cookies();
+    cookieStore.set("is_logged_in", "true", { 
       httpOnly: true, 
-      secure: true, 
-      maxAge: 60 * 60 * 24 * 30 
-    })
-    redirect('/')
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30 // 30 dní
+    });
+    
+    // Přesměrujeme na dashboard
+    redirect("/");
+  } else {
+    return { error: "Nesprávné heslo!" };
   }
-  
-  return { error: 'Nesprávné heslo' }
 }

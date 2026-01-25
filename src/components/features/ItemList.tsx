@@ -1,15 +1,28 @@
 'use client'
 
 import { useState } from "react";
-import { Search, Plus, ArrowUpRight, ArrowDownLeft, X, Minus, User, Check } from "lucide-react";
+import { Search, Plus, ArrowUpRight, ArrowDownLeft, X, Minus, User, ArrowUpDown } from "lucide-react";
 import ItemActions from "@/components/features/ItemActions";
 import { borrowItems, returnItemsFromBorrower, createItem } from "@/actions/items";
 
-type Loan = { id: string | number; borrower_name: string; quantity: number };
-type Item = { id: string | number; name: string; quantity: number; box: string | null; loans: Loan[] };
+type Loan = { 
+  id: string | number; 
+  borrower_name: string; 
+  quantity: number; 
+  borrowed_at: string; 
+};
+
+type Item = { 
+  id: string | number; 
+  name: string; 
+  quantity: number; 
+  box: string | null; 
+  loans: Loan[] 
+};
 
 export default function ItemList({ initialItems }: { initialItems: Item[] }) {
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("available"); 
   const [mode, setMode] = useState<'view' | 'borrow' | 'return'>('view');
   
   const [borrowerName, setBorrowerName] = useState("");
@@ -18,6 +31,13 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return `${date.getDate()}.${date.getMonth() + 1}.`;
+  };
+
+  // 1. FILTROVÁNÍ
   const filteredItems = initialItems.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
                           (item.box && item.box.toLowerCase().includes(search.toLowerCase()));
@@ -27,6 +47,33 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
       return matchesSearch && userHasLoan;
     }
     return matchesSearch;
+  });
+
+  // 2. ŘAZENÍ (KOMPLETNÍ)
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    const aIsAvailable = a.quantity > 0;
+    const bIsAvailable = b.quantity > 0;
+
+    switch (sortBy) {
+      case "available": // Dostupné nahoře
+        if (aIsAvailable && !bIsAvailable) return -1;
+        if (!aIsAvailable && bIsAvailable) return 1;
+        return a.name.localeCompare(b.name); // Uvnitř skupiny podle abecedy
+        
+      case "unavailable": // Nedostupné nahoře
+        if (!aIsAvailable && bIsAvailable) return -1;
+        if (aIsAvailable && !bIsAvailable) return 1;
+        return a.name.localeCompare(b.name);
+
+      case "name_asc": // Čistá abeceda A-Z
+        return a.name.localeCompare(b.name);
+
+      case "name_desc": // Čistá abeceda Z-A
+        return b.name.localeCompare(a.name);
+        
+      default:
+        return 0;
+    }
   });
 
   const updateCart = (id: string, delta: number, limit: number) => {
@@ -51,7 +98,7 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
     setIsReturnNameConfirmed(false);
   };
 
-  // --- HORNÍ MENU (Stejné jako předtím) ---
+  // --- HORNÍ MENU ---
   const renderTopMenu = () => {
     if (mode !== 'view') {
       const isBorrow = mode === 'borrow';
@@ -117,26 +164,52 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
     <div>
       {renderTopMenu()}
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input placeholder="Hledat..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-[2]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            placeholder="Hledat..." 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            className="w-full pl-9 pr-3 py-3 bg-white border border-slate-400 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium" 
+          />
+        </div>
+
+        <div className="relative flex-1">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+             <ArrowUpDown className="w-4 h-4 text-slate-500" />
+          </div>
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="w-full pl-9 pr-2 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none text-slate-700 truncate"
+          >
+            <option value="available">Dostupné</option>
+            <option value="unavailable">Nedostupné</option>
+            <option value="name_asc">A-Z</option>
+            <option value="name_desc">Z-A</option>
+          </select>
+        </div>
       </div>
 
       <div className="space-y-2">
-        {filteredItems.map((item) => {
+        {sortedItems.map((item) => {
           const totalBorrowed = item.loans.reduce((a,b)=>a+b.quantity,0);
           const userBorrowedCount = item.loans.filter(l => l.borrower_name.toLowerCase() === borrowerName.toLowerCase()).reduce((a,b) => a + b.quantity, 0);
           const maxLimit = mode === 'return' ? userBorrowedCount : item.quantity;
+          
+          if (mode === 'return' && userBorrowedCount === 0) return null;
 
-          if (mode === 'return' && userBorrowedCount === 0) return null; // Pozn: variable 'borrowedCount' není definovaná, opraveno níže na userBorrowedCount pro logiku vracení, nebo totalBorrowed pro zobrazení
+          const borderClass = item.quantity > 0 
+            ? "border-emerald-200 shadow-sm" 
+            : "border-red-200 bg-red-50/30 shadow-sm";
 
           return (
-            <div key={item.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div key={item.id} className={`bg-white rounded-xl border-2 overflow-hidden ${borderClass}`}>
               
-              {/* --- HLAVNÍ ŘÁDEK (FLEX) --- */}
               <div className="flex items-center p-3 gap-2">
                 
-                {/* 1. NÁZEV (Nalevo, roztahuje se, zalamuje se) */}
+                {/* 1. NÁZEV */}
                 <div className="flex-1 min-w-0 pr-1">
                   <span className="font-bold text-slate-800 text-sm block leading-tight break-words">{item.name}</span>
                   {totalBorrowed > 0 && (
@@ -146,23 +219,20 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
                   )}
                 </div>
 
-                {/* 2. INFO SLOUPCEK (Box + Pocet) - Uprostřed/Vpravo */}
+                {/* 2. INFO */}
                 <div className="flex flex-col items-center justify-center border-l border-r border-slate-100 px-2 min-w-[50px]">
-                   {/* Box */}
                    <div className="text-[9px] text-slate-400 uppercase leading-none mb-1">Box {item.box || '-'}</div>
-                   {/* Počet */}
-                   <div className="text-lg font-black text-slate-800 leading-none">
+                   <div className={`text-lg font-black leading-none ${item.quantity === 0 ? 'text-red-500' : 'text-slate-800'}`}>
                      {mode === 'view' ? item.quantity : (mode === 'borrow' ? item.quantity : totalBorrowed)}
                    </div>
                    <div className="text-[8px] text-slate-300 uppercase leading-none mt-0.5">ks</div>
                 </div>
 
-                {/* 3. AKCE (Vpravo, kompaktní) */}
+                {/* 3. AKCE */}
                 <div className="pl-1">
                 {mode === 'view' ? (
                    <ItemActions itemId={item.id.toString()} quantity={item.quantity} />
                 ) : (
-                    // Ovládání pro Půjčit/Vrátit (Taky zmenšené)
                     <div className={`flex items-center gap-1 p-1 rounded-lg ${mode === 'borrow' ? 'bg-orange-50' : 'bg-green-50'}`}>
                         <button onClick={() => updateCart(item.id.toString(), -1, maxLimit)} className={`w-7 h-7 flex items-center justify-center rounded-md ${mode === 'borrow' ? 'text-orange-600 bg-white shadow-sm' : 'text-green-600 bg-white shadow-sm'}`}>
                           <Minus className="w-3 h-3 stroke-[3px]"/>
@@ -180,14 +250,19 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
                 </div>
               </div>
 
-              {/* SEZNAM DLUŽNÍKŮ */}
+              {/* SEZNAM DLUŽNÍKŮ S DATEM */}
               {item.loans.length > 0 && (mode === 'view' || mode === 'return') && (
                 <div className="bg-slate-50 border-t border-slate-100 px-3 py-2 flex flex-wrap gap-2">
                   {item.loans.map(loan => (
                     <div key={loan.id} className={`flex items-center gap-1 border px-2 py-1 rounded-md shadow-sm ${mode === 'return' && isReturnNameConfirmed && loan.borrower_name.toLowerCase() === borrowerName.toLowerCase() ? 'bg-green-100 border-green-300' : 'bg-white border-slate-200'}`}>
                       <User className="w-3 h-3 text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-700">{loan.borrower_name}:</span>
+                      
+                      <span className="text-[10px] font-bold text-slate-700">{loan.borrower_name} :</span>
                       <span className="text-[10px] font-bold text-orange-600">{loan.quantity}ks</span>
+                      <span className="text-[9px] font-medium text-slate-400 border-l border-slate-200 pl-1 ml-0.5">
+                        {formatDate(loan.borrowed_at)}
+                      </span>
+                    
                     </div>
                   ))}
                 </div>
@@ -196,7 +271,7 @@ export default function ItemList({ initialItems }: { initialItems: Item[] }) {
           );
         })}
         
-        {mode === 'return' && isReturnNameConfirmed && filteredItems.length === 0 && (
+        {mode === 'return' && isReturnNameConfirmed && sortedItems.length === 0 && (
           <div className="text-center py-10"><p className="text-slate-500 font-medium">Nic půjčeno. 👍</p><button onClick={() => setMode('view')} className="mt-2 text-sm text-blue-600 font-bold underline">Zpět</button></div>
         )}
       </div>

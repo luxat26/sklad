@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react";
-import { Search, Plus, Minus, User, ArrowUpDown, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check } from "lucide-react";
+import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check } from "lucide-react";
 import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem, createItem } from "@/actions/items";
 
 type Loan = { 
@@ -19,7 +19,6 @@ type Item = {
   loans: Loan[] 
 };
 
-// Definice možností řazení pro hezčí kód
 const SORT_OPTIONS = [
   { value: 'available', label: 'Dostupné nejdřív' },
   { value: 'unavailable', label: 'Nedostupné nejdřív' },
@@ -37,11 +36,9 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  
-  // Stav pro otevření/zavření našeho vlastního dropdownu
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // --- FILTROVÁNÍ A ŘAZENÍ ---
+  // --- FILTROVÁNÍ ---
   const searchedItems = initialItems.filter((item) => {
     return item.name.toLowerCase().includes(search.toLowerCase()) || 
            (item.box && item.box.toLowerCase().includes(search.toLowerCase()));
@@ -137,77 +134,76 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
 
   return (
     <div className="relative">
-      {/* Loading Overlay */}
       {isProcessing && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center animate-in fade-in">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
         </div>
       )}
 
-      {/* === HLAVNÍ HEADER (STICKY) === 
-         Oprava: sticky top-0 + bg-[#F1F5F9] (barva pozadí body)
-         Tím se vytvoří "neprůhledná vrstva", za kterou se věci schovají.
-      */}
+      {/* === HLAVNÍ LIŠTA (VŠE V JEDNOM ŘÁDKU) === */}
       <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-4 pb-2">
           
-          {/* HORNÍ LIŠTA S HLEDÁNÍM */}
-          <div className="flex gap-2 mb-3">
-            <div className="relative flex-[2] shadow-lg rounded-xl bg-white">
+          <div className="flex gap-2 items-stretch h-[52px]">
+            
+            {/* 1. HLEDÁNÍ (Flexibilní šířka) */}
+            <div className="relative flex-1 shadow-lg rounded-xl bg-white">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 placeholder="Hledat..." 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)} 
-                className="w-full pl-9 pr-3 py-3 bg-transparent border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-600 outline-none placeholder:text-slate-400 text-slate-800" 
+                className="w-full pl-9 pr-3 h-full bg-transparent border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-600 outline-none placeholder:text-slate-400 text-slate-800" 
               />
             </div>
+
+            {/* 2. FILTR (Dropdown) */}
+            <div className="relative">
+                <button 
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="h-full flex items-center gap-2 px-3 bg-white text-slate-700 border-2 border-transparent hover:border-slate-100 shadow-lg rounded-xl transition-all active:scale-95"
+                >
+                   {/* Ikona se mění podle stavu, barva je vždy tmavá/neutrální */}
+                   {sortBy === 'my_items' ? <User className="w-4 h-4 text-slate-700" /> : <Filter className="w-4 h-4 text-slate-700" />}
+                   
+                   {/* Text skryjeme na extra malých displejích, jinak by se nevešlo hledání */}
+                   <span className="hidden sm:block text-xs font-bold max-w-[100px] truncate">
+                      {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
+                   </span>
+                   
+                   <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Rozbalovací menu */}
+                {isDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
+                      <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                          {SORT_OPTIONS.map((option) => (
+                              <button
+                                  key={option.value}
+                                  onClick={() => { setSortBy(option.value); setIsDropdownOpen(false); }}
+                                  className={`
+                                      w-full text-left px-4 py-3 text-xs font-bold flex items-center justify-between transition-colors border-b border-slate-50 last:border-0
+                                      ${sortBy === option.value ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}
+                                  `}
+                              >
+                                  {option.label}
+                                  {sortBy === option.value && <Check className="w-3 h-3 text-slate-900" />}
+                              </button>
+                          ))}
+                      </div>
+                    </>
+                )}
+            </div>
             
-            <button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center w-12 shrink-0">
+            {/* 3. TLAČÍTKO PŘIDAT */}
+            <button 
+                onClick={() => setIsAdding(true)} 
+                className="bg-blue-600 hover:bg-blue-700 text-white w-[52px] h-[52px] rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center shrink-0"
+            >
                 <Plus className="w-6 h-6 stroke-[3px]" />
             </button>
-          </div>
 
-          {/* VLASTNÍ DROPDOWN (Už ne <select>) */}
-          <div className="flex justify-end px-1 relative">
-              <button 
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className={`
-                    flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border shadow-sm transition-all bg-white
-                    ${sortBy === 'my_items' ? 'text-blue-700 border-blue-200' : 'text-slate-600 border-slate-200'}
-                `}
-              >
-                 {sortBy === 'my_items' ? <User className="w-3 h-3 text-blue-600" /> : <Filter className="w-3 h-3 text-slate-500" />}
-                 
-                 {/* Zobrazíme text aktuálně vybrané možnosti */}
-                 <span>{SORT_OPTIONS.find(o => o.value === sortBy)?.label}</span>
-                 
-                 <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* ROZBALOVACÍ MENU (Absolutní pozice) */}
-              {isDropdownOpen && (
-                  <>
-                    {/* Neviditelná vrstva přes celou obrazovku, aby kliknutí vedle zavřelo menu */}
-                    <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
-                    
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                        {SORT_OPTIONS.map((option) => (
-                            <button
-                                key={option.value}
-                                onClick={() => { setSortBy(option.value); setIsDropdownOpen(false); }}
-                                className={`
-                                    w-full text-left px-4 py-3 text-xs font-bold flex items-center justify-between transition-colors
-                                    ${sortBy === option.value ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}
-                                `}
-                            >
-                                {option.label}
-                                {/* Zobrazíme "fajfku" u vybraného, ale žádné modré pozadí */}
-                                {sortBy === option.value && <Check className="w-3 h-3 text-slate-900" />}
-                            </button>
-                        ))}
-                    </div>
-                  </>
-              )}
           </div>
       </div>
 

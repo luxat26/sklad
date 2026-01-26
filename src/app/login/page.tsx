@@ -1,22 +1,17 @@
 'use client'
 
 import { loginAction } from "@/actions/auth";
-import { Package, Lock } from "lucide-react";
+import { Package, Lock, User } from "lucide-react"; // Import User ikony
 import { useState } from "react";
 
 export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Wrapper, který opraví tu chybu "Type error"
   const handleSubmit = async (formData: FormData) => {
     setIsLoading(true);
     setError("");
-    
-    // Zavoláme server action
     const result = await loginAction(formData);
-    
-    // Pokud vrátí chybu, zobrazíme ji. Pokud ne (úspěch), proběhne redirect na serveru.
     if (result?.error) {
       setError(result.error);
       setIsLoading(false);
@@ -33,16 +28,32 @@ export default function LoginPage() {
         </div>
         
         <h1 className="text-2xl font-black text-center text-slate-800 mb-2">Vítej ve skladu</h1>
-        <p className="text-center text-slate-400 text-sm mb-8 font-medium">Pro přístup zadej heslo</p>
+        <p className="text-center text-slate-400 text-sm mb-8 font-medium">Zadej jméno a heslo skladu</p>
 
         <form action={handleSubmit} className="space-y-4">
+          
+          {/* 1. Nový input pro Jméno */}
+          <div>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                name="username"
+                placeholder="Tvé jméno (např. Lukáš)"
+                required
+                autoFocus
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+              />
+            </div>
+          </div>
+
           <div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="password"
                 name="password"
-                placeholder="Heslo"
+                placeholder="Heslo skladu"
                 required
                 className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
               />

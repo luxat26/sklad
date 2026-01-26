@@ -14,3 +14,7 @@
   /services             # Databázové dotazy (čtení z DB, abstrakce nad Supabase)
   /types                # Globální TypeScript rozhraní a typy z DB
   /hooks                # Reagování na klientské eventy (pokud bude potřeba)
+  
+git add .
+git commit -m "Zmena hlavniho layoutu"
+git push origin ui-redesign

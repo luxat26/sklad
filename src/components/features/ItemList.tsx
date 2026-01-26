@@ -32,11 +32,55 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   const [sortBy, setSortBy] = useState("available"); 
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [amount, setAmount] = useState<number>(1);
+  
+  // ZMĚNA: Amount může být i prázdný string (pro pohodlné mazání)
+  const [amount, setAmount] = useState<number | string>(1);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // --- LOGIKA PRO INPUT (Limity a mazání) ---
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    
+    // 1. Povolit smazání všeho
+    if (val === "") {
+        setAmount("");
+        return;
+    }
+
+    // 2. Parsujeme číslo
+    const num = parseInt(val);
+    
+    // 3. Kontrola limitů
+    if (isNaN(num)) return; // Pokud to není číslo, nic nedělej
+    if (num < 0) return;    // Zákaz záporných (i když type="number" to většinou blokuje)
+    if (num > 1000) {       // Max limit
+        setAmount(1000);
+        return;
+    }
+
+    setAmount(num);
+  };
+
+  const handleAmountBlur = () => {
+    // Když uživatel klikne pryč a je to prázdné nebo 0, vrátíme tam 1
+    if (amount === "" || amount === 0) {
+        setAmount(1);
+    }
+  };
+
+  const updateAmountByButton = (delta: number) => {
+    const currentVal = typeof amount === 'string' ? 0 : amount;
+    const newVal = currentVal + delta;
+    
+    // Limity pro tlačítka
+    if (newVal < 0) return;
+    if (newVal > 1000) return;
+    
+    setAmount(newVal);
+  };
 
   // --- FILTROVÁNÍ ---
   const searchedItems = initialItems.filter((item) => {
@@ -73,12 +117,15 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
 
   // --- AKCE ---
   const handleAction = async (actionType: 'add' | 'borrow' | 'return', itemId: string, itemName: string) => {
-    if (amount <= 0) return alert("Množství musí být větší než 0");
+    const finalAmount = typeof amount === 'string' ? parseInt(amount) : amount;
+    
+    if (!finalAmount || finalAmount <= 0) return alert("Množství musí být větší než 0");
+    
     setIsProcessing(true);
     try {
-      if (actionType === 'add') await updateItemQuantity(itemId, amount);
-      else if (actionType === 'borrow') await borrowItems(currentUser, { [itemId]: amount });
-      else if (actionType === 'return') await returnItemsFromBorrower(currentUser, { [itemId]: amount });
+      if (actionType === 'add') await updateItemQuantity(itemId, finalAmount);
+      else if (actionType === 'borrow') await borrowItems(currentUser, { [itemId]: finalAmount });
+      else if (actionType === 'return') await returnItemsFromBorrower(currentUser, { [itemId]: finalAmount });
       setAmount(1);
     } catch (error) {
       console.error(error);
@@ -140,12 +187,10 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
         </div>
       )}
 
-      {/* === HLAVNÍ LIŠTA (VŠE V JEDNOM ŘÁDKU) === */}
+      {/* === HLAVNÍ LIŠTA === */}
       <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-4 pb-2">
-          
           <div className="flex gap-2 items-stretch h-[52px]">
-            
-            {/* 1. HLEDÁNÍ (Flexibilní šířka) */}
+            {/* HLEDÁNÍ */}
             <div className="relative flex-1 shadow-lg rounded-xl bg-white">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
@@ -156,24 +201,19 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
               />
             </div>
 
-            {/* 2. FILTR (Dropdown) */}
+            {/* FILTR */}
             <div className="relative">
                 <button 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="h-full flex items-center gap-2 px-3 bg-white text-slate-700 border-2 border-transparent hover:border-slate-100 shadow-lg rounded-xl transition-all active:scale-95"
                 >
-                   {/* Ikona se mění podle stavu, barva je vždy tmavá/neutrální */}
                    {sortBy === 'my_items' ? <User className="w-4 h-4 text-slate-700" /> : <Filter className="w-4 h-4 text-slate-700" />}
-                   
-                   {/* Text skryjeme na extra malých displejích, jinak by se nevešlo hledání */}
                    <span className="hidden sm:block text-xs font-bold max-w-[100px] truncate">
                       {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
                    </span>
-                   
                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Rozbalovací menu */}
                 {isDropdownOpen && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
@@ -196,14 +236,13 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 )}
             </div>
             
-            {/* 3. TLAČÍTKO PŘIDAT */}
+            {/* TLAČÍTKO PŘIDAT */}
             <button 
                 onClick={() => setIsAdding(true)} 
                 className="bg-blue-600 hover:bg-blue-700 text-white w-[52px] h-[52px] rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center shrink-0"
             >
                 <Plus className="w-6 h-6 stroke-[3px]" />
             </button>
-
           </div>
       </div>
 
@@ -252,8 +291,9 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 <div className="px-4 pb-4 animate-in slide-in-from-top-2">
                     <div className="h-px bg-slate-100 w-full mb-4"></div>
 
+                    {/* === INPUT S MNOŽSTVÍM (OPRAVENÝ) === */}
                     <div className="flex items-center gap-3 mb-4">
-                        <button onClick={() => setAmount(Math.max(1, amount - 1))} className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-200 active:scale-90 transition-transform hover:bg-slate-100">
+                        <button onClick={() => updateAmountByButton(-1)} className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-200 active:scale-90 transition-transform hover:bg-slate-100">
                             <Minus className="w-5 h-5 text-slate-600" />
                         </button>
                         
@@ -261,13 +301,14 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                             <input 
                                 type="number" 
                                 value={amount} 
-                                onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
+                                onChange={handleAmountChange}
+                                onBlur={handleAmountBlur}
                                 className="w-full text-center text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2 focus:ring-2 focus:ring-blue-500 outline-none"
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase pointer-events-none">ks</span>
                         </div>
 
-                        <button onClick={() => setAmount(amount + 1)} className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-200 active:scale-90 transition-transform hover:bg-slate-100">
+                        <button onClick={() => updateAmountByButton(1)} className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-200 active:scale-90 transition-transform hover:bg-slate-100">
                             <Plus className="w-5 h-5 text-slate-600" />
                         </button>
                     </div>
@@ -283,7 +324,8 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
 
                         <button 
                             onClick={() => handleAction('borrow', item.id.toString(), item.name)}
-                            disabled={item.quantity < amount}
+                            // Kontrola disabled musí počítat s tím, že amount může být string
+                            disabled={item.quantity < (typeof amount === 'string' ? 0 : amount)}
                             className="flex flex-col items-center justify-center gap-1 bg-orange-50 border-2 border-orange-100 hover:bg-orange-100 text-orange-600 p-3 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >
                             <ArrowUpRight className="w-6 h-6 stroke-[3px]" />
@@ -292,7 +334,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
 
                         <button 
                             onClick={() => handleAction('return', item.id.toString(), item.name)}
-                            disabled={myLoanQty < amount} 
+                            disabled={myLoanQty < (typeof amount === 'string' ? 0 : amount)} 
                             className="flex flex-col items-center justify-center gap-1 bg-blue-50 border-2 border-blue-100 hover:bg-blue-100 text-blue-600 p-3 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >
                             <ArrowDownLeft className="w-6 h-6 stroke-[3px]" />

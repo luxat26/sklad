@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from "react";
-import { Search, Plus, Minus, User, ArrowUpDown, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2 } from "lucide-react";
+import { Search, Plus, Minus, User, ArrowUpDown, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check } from "lucide-react";
 import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem, createItem } from "@/actions/items";
-// import AddItemForm ... (není potřeba importovat, pokud ho nepoužíváme přímo jako komponentu v JSX, ale tady ho máš v kódu níže inline)
 
 type Loan = { 
   id: string | number; 
@@ -20,6 +19,15 @@ type Item = {
   loans: Loan[] 
 };
 
+// Definice možností řazení pro hezčí kód
+const SORT_OPTIONS = [
+  { value: 'available', label: 'Dostupné nejdřív' },
+  { value: 'unavailable', label: 'Nedostupné nejdřív' },
+  { value: 'name_asc', label: 'Od A do Z' },
+  { value: 'name_desc', label: 'Od Z do A' },
+  { value: 'my_items', label: 'Jen moje výpůjčky' },
+];
+
 export default function ItemList({ initialItems, currentUser }: { initialItems: Item[], currentUser: string }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("available"); 
@@ -29,11 +37,21 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Stav pro otevření/zavření našeho vlastního dropdownu
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // --- FILTROVÁNÍ A ŘAZENÍ ---
-  const filteredItems = initialItems.filter((item) => {
+  const searchedItems = initialItems.filter((item) => {
     return item.name.toLowerCase().includes(search.toLowerCase()) || 
            (item.box && item.box.toLowerCase().includes(search.toLowerCase()));
+  });
+
+  const filteredItems = searchedItems.filter((item) => {
+    if (sortBy === 'my_items') {
+        return item.loans.some(l => l.borrower_name.toLowerCase() === currentUser.toLowerCase() && l.quantity > 0);
+    }
+    return true;
   });
 
   const sortedItems = [...filteredItems].sort((a, b) => {
@@ -51,6 +69,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
         return a.name.localeCompare(b.name);
       case "name_asc": return a.name.localeCompare(b.name);
       case "name_desc": return b.name.localeCompare(a.name);
+      case "my_items": return a.name.localeCompare(b.name);
       default: return 0;
     }
   });
@@ -58,18 +77,11 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   // --- AKCE ---
   const handleAction = async (actionType: 'add' | 'borrow' | 'return', itemId: string, itemName: string) => {
     if (amount <= 0) return alert("Množství musí být větší než 0");
-    
     setIsProcessing(true);
     try {
-      if (actionType === 'add') {
-        await updateItemQuantity(itemId, amount);
-      } 
-      else if (actionType === 'borrow') {
-        await borrowItems(currentUser, { [itemId]: amount });
-      } 
-      else if (actionType === 'return') {
-        await returnItemsFromBorrower(currentUser, { [itemId]: amount });
-      }
+      if (actionType === 'add') await updateItemQuantity(itemId, amount);
+      else if (actionType === 'borrow') await borrowItems(currentUser, { [itemId]: amount });
+      else if (actionType === 'return') await returnItemsFromBorrower(currentUser, { [itemId]: amount });
       setAmount(1);
     } catch (error) {
       console.error(error);
@@ -88,12 +100,8 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   };
 
   const toggleExpand = (id: string) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(id);
-      setAmount(1); 
-    }
+    if (expandedId === id) setExpandedId(null);
+    else { setExpandedId(id); setAmount(1); }
   };
 
   // --- RENDER ---
@@ -136,38 +144,74 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
         </div>
       )}
 
-      {/* --- OPRAVA ZDE: ZMĚNA z-10 NA z-50 --- */}
-      <div className="flex gap-2 mb-4 sticky top-4 z-50">
-        <div className="relative flex-[2] shadow-lg rounded-xl bg-white">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            placeholder="Hledat..." 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            className="w-full pl-9 pr-3 py-3 bg-transparent border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-600 outline-none placeholder:text-slate-400 text-slate-800" 
-          />
-        </div>
-        
-        <button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center w-12 shrink-0">
-            <Plus className="w-6 h-6 stroke-[3px]" />
-        </button>
-      </div>
+      {/* === HLAVNÍ HEADER (STICKY) === 
+         Oprava: sticky top-0 + bg-[#F1F5F9] (barva pozadí body)
+         Tím se vytvoří "neprůhledná vrstva", za kterou se věci schovají.
+      */}
+      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-4 pb-2">
+          
+          {/* HORNÍ LIŠTA S HLEDÁNÍM */}
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-[2] shadow-lg rounded-xl bg-white">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                placeholder="Hledat..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)} 
+                className="w-full pl-9 pr-3 py-3 bg-transparent border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-600 outline-none placeholder:text-slate-400 text-slate-800" 
+              />
+            </div>
+            
+            <button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center w-12 shrink-0">
+                <Plus className="w-6 h-6 stroke-[3px]" />
+            </button>
+          </div>
 
-      <div className="flex justify-end mb-4 px-1">
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-            <ArrowUpDown className="w-3 h-3 text-slate-400" />
-            <select 
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="text-xs font-bold text-slate-600 bg-transparent outline-none appearance-none pr-4 cursor-pointer"
-            >
-                <option value="available">Dostupné nejdřív</option>
-                <option value="unavailable">Nedostupné nejdřív</option>
-                <option value="name_asc">Od A do Z</option>
-            </select>
+          {/* VLASTNÍ DROPDOWN (Už ne <select>) */}
+          <div className="flex justify-end px-1 relative">
+              <button 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className={`
+                    flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border shadow-sm transition-all bg-white
+                    ${sortBy === 'my_items' ? 'text-blue-700 border-blue-200' : 'text-slate-600 border-slate-200'}
+                `}
+              >
+                 {sortBy === 'my_items' ? <User className="w-3 h-3 text-blue-600" /> : <Filter className="w-3 h-3 text-slate-500" />}
+                 
+                 {/* Zobrazíme text aktuálně vybrané možnosti */}
+                 <span>{SORT_OPTIONS.find(o => o.value === sortBy)?.label}</span>
+                 
+                 <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* ROZBALOVACÍ MENU (Absolutní pozice) */}
+              {isDropdownOpen && (
+                  <>
+                    {/* Neviditelná vrstva přes celou obrazovku, aby kliknutí vedle zavřelo menu */}
+                    <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
+                    
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                        {SORT_OPTIONS.map((option) => (
+                            <button
+                                key={option.value}
+                                onClick={() => { setSortBy(option.value); setIsDropdownOpen(false); }}
+                                className={`
+                                    w-full text-left px-4 py-3 text-xs font-bold flex items-center justify-between transition-colors
+                                    ${sortBy === option.value ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}
+                                `}
+                            >
+                                {option.label}
+                                {/* Zobrazíme "fajfku" u vybraného, ale žádné modré pozadí */}
+                                {sortBy === option.value && <Check className="w-3 h-3 text-slate-900" />}
+                            </button>
+                        ))}
+                    </div>
+                  </>
+              )}
           </div>
       </div>
 
+      {/* SEZNAM POLOŽEK */}
       <div className="space-y-3 pb-20">
         {sortedItems.map((item) => {
           const isExpanded = expandedId === item.id.toString();
@@ -292,7 +336,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
 
         {sortedItems.length === 0 && (
             <div className="text-center py-10 text-slate-400 font-medium animate-in fade-in">
-                Nic se nenašlo 👻
+                {sortBy === 'my_items' ? 'Nemáš žádné výpůjčky 👍' : 'Nic se nenašlo 👻'}
             </div>
         )}
       </div>

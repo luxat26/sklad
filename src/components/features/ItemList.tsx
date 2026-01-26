@@ -159,27 +159,28 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   return (
     <div className="relative">
       {isProcessing && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center animate-in fade-in">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-l z-[70] flex items-center justify-center animate-in fade-in">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
         </div>
       )}
 
-      {/* === HLAVNÍ LIŠTA (ČISTÁ A VĚTŠÍ) === 
-          1. pt-8 pb-4: Zvětšil jsem padding, aby lišta byla vyšší.
-          2. bg-[#F1F5F9]: Pevná barva, která spolehlivě zakryje vše pod sebou.
-          3. Žádný shadow, žádný border, žádný gradient.
+      {/* === HLAVNÍ LIŠTA (MASSIVE & SOLID) === 
+          Změny:
+          1. pt-10 pb-6: Výrazně větší padding nahoře a dole -> lišta je vyšší.
+          2. h-[60px]: Zvýšená výška vnitřních prvků (inputů, tlačítek).
+          3. bg-[#F1F5F9]: Pevné pozadí. Jelikož je sticky top-0 a má padding, všechno co scrolluje nahoru se schová "do paddingu" a zmizí.
       */}
-      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-8 pb-4 px-1">
+      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-5 pb-5">
           
-          <div className="flex gap-2 items-stretch h-[52px]">
+          <div className="flex gap-2 items-stretch h-[65px]">
             {/* HLEDÁNÍ */}
-            <div className="relative flex-1 shadow-sm rounded-xl bg-white border-2 border-transparent focus-within:border-blue-100 transition-all">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <div className="relative flex-1 shadow-2xl rounded-2xl bg-white border-2 border-transparent focus-within:border-blue-100 transition-all">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input 
                 placeholder="Hledat..." 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)} 
-                className="w-full pl-9 pr-3 h-full bg-transparent border-none rounded-xl text-sm font-medium focus:outline-none placeholder:text-slate-400 text-slate-800" 
+                className="w-full pl-11 pr-4 h-full bg-transparent border-none rounded-2xl text-base font-medium focus:outline-none placeholder:text-slate-400 text-slate-800" 
               />
             </div>
 
@@ -187,30 +188,30 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
             <div className="relative">
                 <button 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="h-full flex items-center gap-2 px-3 bg-white text-slate-700 shadow-sm rounded-xl transition-all active:scale-95 hover:bg-slate-50 border-2 border-transparent hover:border-slate-100"
+                  className="h-full flex items-center gap-2 px-4 bg-white text-slate-700 shadow-2xl rounded-2xl transition-all active:scale-95 hover:bg-slate-50 border-2 border-transparent hover:border-slate-100"
                 >
-                   {sortBy === 'my_items' ? <User className="w-4 h-4 text-slate-700" /> : <Filter className="w-4 h-4 text-slate-700" />}
+                   {sortBy === 'my_items' ? <User className="w-5 h-5 text-slate-700" /> : <Filter className="w-5 h-5 text-slate-700" />}
                    <span className="hidden sm:block text-xs font-bold max-w-[100px] truncate">
                       {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
                    </span>
-                   <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                   <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isDropdownOpen && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
-                      <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                           {SORT_OPTIONS.map((option) => (
                               <button
                                   key={option.value}
                                   onClick={() => { setSortBy(option.value); setIsDropdownOpen(false); }}
                                   className={`
-                                      w-full text-left px-4 py-3 text-xs font-bold flex items-center justify-between transition-colors border-b border-slate-50 last:border-0
+                                      w-full text-left px-5 py-4 text-sm font-bold flex items-center justify-between transition-colors border-b border-slate-50 last:border-0
                                       ${sortBy === option.value ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}
                                   `}
                               >
                                   {option.label}
-                                  {sortBy === option.value && <Check className="w-3 h-3 text-slate-900" />}
+                                  {sortBy === option.value && <Check className="w-4 h-4 text-slate-900" />}
                               </button>
                           ))}
                       </div>
@@ -221,9 +222,9 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
             {/* TLAČÍTKO PŘIDAT */}
             <button 
                 onClick={() => setIsAdding(true)} 
-                className="bg-blue-600 hover:bg-blue-700 text-white w-[52px] h-[52px] rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white w-[60px] h-[60px] rounded-2xl shadow-2xl shadow-blue-200 active:scale-95 transition-all flex items-center justify-center shrink-0"
             >
-                <Plus className="w-6 h-6 stroke-[3px]" />
+                <Plus className="w-7 h-7 stroke-[3px]" />
             </button>
           </div>
       </div>
@@ -273,6 +274,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 <div className="px-4 pb-4 animate-in slide-in-from-top-2">
                     <div className="h-px bg-slate-100 w-full mb-4"></div>
 
+                    {/* === INPUT S MNOŽSTVÍM === */}
                     <div className="flex items-center gap-3 mb-4">
                         <button onClick={() => updateAmountByButton(-1)} className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-200 active:scale-90 transition-transform hover:bg-slate-100">
                             <Minus className="w-5 h-5 text-slate-600" />

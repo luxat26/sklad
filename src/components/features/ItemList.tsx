@@ -30,59 +30,34 @@ const SORT_OPTIONS = [
 export default function ItemList({ initialItems, currentUser }: { initialItems: Item[], currentUser: string }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("available"); 
-  
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  
-  // ZMĚNA: Amount může být i prázdný string (pro pohodlné mazání)
   const [amount, setAmount] = useState<number | string>(1);
-  
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // --- LOGIKA PRO INPUT (Limity a mazání) ---
+  // --- LOGIKA ---
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    
-    // 1. Povolit smazání všeho
-    if (val === "") {
-        setAmount("");
-        return;
-    }
-
-    // 2. Parsujeme číslo
+    if (val === "") { setAmount(""); return; }
     const num = parseInt(val);
-    
-    // 3. Kontrola limitů
-    if (isNaN(num)) return; // Pokud to není číslo, nic nedělej
-    if (num < 0) return;    // Zákaz záporných (i když type="number" to většinou blokuje)
-    if (num > 1000) {       // Max limit
-        setAmount(1000);
-        return;
-    }
-
+    if (isNaN(num)) return; 
+    if (num < 0) return;    
+    if (num > 1000) { setAmount(1000); return; }
     setAmount(num);
   };
 
   const handleAmountBlur = () => {
-    // Když uživatel klikne pryč a je to prázdné nebo 0, vrátíme tam 1
-    if (amount === "" || amount === 0) {
-        setAmount(1);
-    }
+    if (amount === "" || amount === 0) setAmount(1);
   };
 
   const updateAmountByButton = (delta: number) => {
     const currentVal = typeof amount === 'string' ? 0 : amount;
     const newVal = currentVal + delta;
-    
-    // Limity pro tlačítka
-    if (newVal < 0) return;
-    if (newVal > 1000) return;
-    
+    if (newVal < 0 || newVal > 1000) return;
     setAmount(newVal);
   };
 
-  // --- FILTROVÁNÍ ---
   const searchedItems = initialItems.filter((item) => {
     return item.name.toLowerCase().includes(search.toLowerCase()) || 
            (item.box && item.box.toLowerCase().includes(search.toLowerCase()));
@@ -115,12 +90,9 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     }
   });
 
-  // --- AKCE ---
   const handleAction = async (actionType: 'add' | 'borrow' | 'return', itemId: string, itemName: string) => {
     const finalAmount = typeof amount === 'string' ? parseInt(amount) : amount;
-    
     if (!finalAmount || finalAmount <= 0) return alert("Množství musí být větší než 0");
-    
     setIsProcessing(true);
     try {
       if (actionType === 'add') await updateItemQuantity(itemId, finalAmount);
@@ -166,7 +138,12 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                         </div>
                         <div className="w-2/3">
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Počet ks</label>
-                            <input name="quantity" type="number" placeholder="0" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <input 
+                                name="quantity" 
+                                type="number" 
+                                placeholder="0" 
+                                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                            />
                         </div>
                     </div>
                     <div className="flex gap-2 pt-2">
@@ -187,17 +164,22 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
         </div>
       )}
 
-      {/* === HLAVNÍ LIŠTA === */}
-      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-4 pb-2">
+      {/* === HLAVNÍ LIŠTA (ČISTÁ A VĚTŠÍ) === 
+          1. pt-8 pb-4: Zvětšil jsem padding, aby lišta byla vyšší.
+          2. bg-[#F1F5F9]: Pevná barva, která spolehlivě zakryje vše pod sebou.
+          3. Žádný shadow, žádný border, žádný gradient.
+      */}
+      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-8 pb-4 px-1">
+          
           <div className="flex gap-2 items-stretch h-[52px]">
             {/* HLEDÁNÍ */}
-            <div className="relative flex-1 shadow-lg rounded-xl bg-white">
+            <div className="relative flex-1 shadow-sm rounded-xl bg-white border-2 border-transparent focus-within:border-blue-100 transition-all">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 placeholder="Hledat..." 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)} 
-                className="w-full pl-9 pr-3 h-full bg-transparent border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-600 outline-none placeholder:text-slate-400 text-slate-800" 
+                className="w-full pl-9 pr-3 h-full bg-transparent border-none rounded-xl text-sm font-medium focus:outline-none placeholder:text-slate-400 text-slate-800" 
               />
             </div>
 
@@ -205,7 +187,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
             <div className="relative">
                 <button 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="h-full flex items-center gap-2 px-3 bg-white text-slate-700 border-2 border-transparent hover:border-slate-100 shadow-lg rounded-xl transition-all active:scale-95"
+                  className="h-full flex items-center gap-2 px-3 bg-white text-slate-700 shadow-sm rounded-xl transition-all active:scale-95 hover:bg-slate-50 border-2 border-transparent hover:border-slate-100"
                 >
                    {sortBy === 'my_items' ? <User className="w-4 h-4 text-slate-700" /> : <Filter className="w-4 h-4 text-slate-700" />}
                    <span className="hidden sm:block text-xs font-bold max-w-[100px] truncate">
@@ -247,7 +229,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
       </div>
 
       {/* SEZNAM POLOŽEK */}
-      <div className="space-y-3 pb-20">
+      <div className="space-y-3 pb-20 pt-2">
         {sortedItems.map((item) => {
           const isExpanded = expandedId === item.id.toString();
           
@@ -291,7 +273,6 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 <div className="px-4 pb-4 animate-in slide-in-from-top-2">
                     <div className="h-px bg-slate-100 w-full mb-4"></div>
 
-                    {/* === INPUT S MNOŽSTVÍM (OPRAVENÝ) === */}
                     <div className="flex items-center gap-3 mb-4">
                         <button onClick={() => updateAmountByButton(-1)} className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-200 active:scale-90 transition-transform hover:bg-slate-100">
                             <Minus className="w-5 h-5 text-slate-600" />
@@ -303,7 +284,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                                 value={amount} 
                                 onChange={handleAmountChange}
                                 onBlur={handleAmountBlur}
-                                className="w-full text-center text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full text-center text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2 focus:ring-2 focus:ring-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase pointer-events-none">ks</span>
                         </div>
@@ -324,7 +305,6 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
 
                         <button 
                             onClick={() => handleAction('borrow', item.id.toString(), item.name)}
-                            // Kontrola disabled musí počítat s tím, že amount může být string
                             disabled={item.quantity < (typeof amount === 'string' ? 0 : amount)}
                             className="flex flex-col items-center justify-center gap-1 bg-orange-50 border-2 border-orange-100 hover:bg-orange-100 text-orange-600 p-3 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >

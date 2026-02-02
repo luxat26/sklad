@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check } from "lucide-react";
-import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem, createItem } from "@/actions/items";
+import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem } from "@/actions/items";
+import AddItemForm from "./AddItemForm"; // <--- Nový import
 
 type Loan = { 
   id: string | number; 
@@ -33,7 +34,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [amount, setAmount] = useState<number | string>(1);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAdding, setIsAdding] = useState(false); // Toto ovládá viditelnost formuláře
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // --- LOGIKA ---
@@ -121,57 +122,23 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   };
 
   // --- RENDER ---
-  if (isAdding) {
-     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-             <div className="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in">
-                <h2 className="font-bold text-xl mb-4 text-slate-800">Nová položka</h2>
-                <form action={async (fd) => { setIsProcessing(true); await createItem(fd); setIsProcessing(false); setIsAdding(false); }} className="space-y-4">
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Název</label>
-                        <input name="name" autoFocus placeholder="Např. Vrtačka" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" required />
-                    </div>
-                    <div className="flex gap-2">
-                        <div className="w-1/3">
-                            <label className="text-xs font-bold text-slate-400 uppercase ml-1">Box</label>
-                            <input name="box" placeholder="A1" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div className="w-2/3">
-                            <label className="text-xs font-bold text-slate-400 uppercase ml-1">Počet ks</label>
-                            <input 
-                                name="quantity" 
-                                type="number" 
-                                placeholder="0" 
-                                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                            />
-                        </div>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                        <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">Zrušit</button>
-                        <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Uložit</button>
-                    </div>
-                </form>
-             </div>
-        </div>
-     );
-  }
+  // Poznámka: Zde jsme odstranili ten velký blok if (isAdding) return ..., 
+  // místo toho renderujeme AddItemForm jako komponentu na konci.
 
   return (
     <div className="relative">
+      {/* Loading overlay pro hlavní stránku */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-l z-[70] flex items-center justify-center animate-in fade-in">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center animate-in fade-in">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
         </div>
       )}
 
-      {/* === HLAVNÍ LIŠTA (MASSIVE & SOLID) === 
-          Změny:
-          1. pt-10 pb-6: Výrazně větší padding nahoře a dole -> lišta je vyšší.
-          2. h-[60px]: Zvýšená výška vnitřních prvků (inputů, tlačítek).
-          3. bg-[#F1F5F9]: Pevné pozadí. Jelikož je sticky top-0 a má padding, všechno co scrolluje nahoru se schová "do paddingu" a zmizí.
-      */}
+      {/* Komponenta pro přidání nové položky */}
+      <AddItemForm isOpen={isAdding} onClose={() => setIsAdding(false)} />
+
+      {/* === HLAVNÍ LIŠTA === */}
       <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-5 pb-5">
-          
           <div className="flex gap-2 items-stretch h-[65px]">
             {/* HLEDÁNÍ */}
             <div className="relative flex-1 shadow-2xl rounded-2xl bg-white border-2 border-transparent focus-within:border-blue-100 transition-all">
@@ -219,7 +186,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 )}
             </div>
             
-            {/* TLAČÍTKO PŘIDAT */}
+            {/* TLAČÍTKO PŘIDAT - Otevírá AddItemForm */}
             <button 
                 onClick={() => setIsAdding(true)} 
                 className="bg-blue-600 hover:bg-blue-700 text-white w-[60px] h-[60px] rounded-2xl shadow-2xl shadow-blue-200 active:scale-95 transition-all flex items-center justify-center shrink-0"

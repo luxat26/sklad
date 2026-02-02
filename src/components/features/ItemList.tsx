@@ -5,6 +5,15 @@ import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus
 import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem } from "@/actions/items";
 import AddItemForm from "./AddItemForm";
 
+
+// Pomocná funkce na odstranění diakritiky a převod na malá písmena
+function normalizeText(text: string) {
+  return text
+    .normalize("NFD") // Rozloží znaky (např. "č" na "c" + háček)
+    .replace(/[\u0300-\u036f]/g, "") // Odstraní ty háčky/čárky
+    .toLowerCase(); // Převede na malá
+}
+
 type Loan = { 
   id: string | number; 
   borrower_name: string; 
@@ -72,9 +81,17 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     setAmount(newVal);
   };
 
+// Původní searchedItems nahraď tímto:
   const searchedItems = initialItems.filter((item) => {
-    return item.name.toLowerCase().includes(search.toLowerCase()) || 
-           (item.box && item.box.toLowerCase().includes(search.toLowerCase()));
+    // Pokud není nic v hledání, vratíme vše
+    if (!search) return true;
+
+    const normalizedSearch = normalizeText(search);
+    const normalizedName = normalizeText(item.name);
+
+    // 1. Hledáme POUZE v názvu (box ignorujeme)
+    // 2. Používáme .startsWith místo .includes (hledá jen od začátku, ne uprostřed)
+    return normalizedName.startsWith(normalizedSearch);
   });
 
   const filteredItems = searchedItems.filter((item) => {
@@ -112,12 +129,23 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     }
   });
 
-  const handleAction = async (actionType: 'add' | 'borrow' | 'return', itemId: string, itemName: string) => {
+  const handleAction = async (actionType: 'add' | 'remove' | 'borrow' | 'return', itemId: string, itemName: string) => {
     const finalAmount = typeof amount === 'string' ? parseInt(amount) : amount;
     if (!finalAmount || finalAmount <= 0) return alert("Množství musí být větší než 0");
+
+    // === NOVÉ: Potvrzovací dialogy pro skladové pohyby ===
+    if (actionType === 'add') {
+        if (!confirm(`Opravdu chceš PŘIDAT ${finalAmount} ks k položce "${itemName}"?`)) return;
+    }
+    if (actionType === 'remove') {
+        if (!confirm(`Opravdu chceš ODEBRAT ${finalAmount} ks od položky "${itemName}"?`)) return;
+    }
+    // ====================================================
+
     setIsProcessing(true);
     try {
       if (actionType === 'add') await updateItemQuantity(itemId, finalAmount);
+      else if (actionType === 'remove') await updateItemQuantity(itemId, -finalAmount); // Posíláme záporné číslo
       else if (actionType === 'borrow') await borrowItems(currentUser, { [itemId]: finalAmount });
       else if (actionType === 'return') await returnItemsFromBorrower(currentUser, { [itemId]: finalAmount });
       setAmount(1);
@@ -317,34 +345,48 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                             <Plus className="w-5 h-5 text-slate-600" />
                         </button>
                     </div>
-
-                    <div className="grid grid-cols-3 gap-2 mb-6">
+                     <div className="grid grid-cols-4 gap-2 mb-6">
+                        {/* 1. PŘIDAT */}
                         <button 
                             onClick={() => handleAction('add', item.id.toString(), item.name)}
-                            className="flex flex-col items-center justify-center gap-1 bg-emerald-50 border-2 border-emerald-100 hover:bg-emerald-100 text-emerald-700 p-3 rounded-xl transition-colors active:scale-95"
+                            className="flex flex-col items-center justify-center gap-1 bg-emerald-50 border-2 border-emerald-100 hover:bg-emerald-100 text-emerald-700 p-2 rounded-xl transition-colors active:scale-95"
                         >
-                            <Plus className="w-6 h-6 stroke-[3px]" />
-                            <span className="text-[10px] font-black uppercase">Přidat</span>
+                            <Plus className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Přidat</span>
                         </button>
 
+                        {/* 2. UBRAT (NOVÉ) */}
+                        <button 
+                            onClick={() => handleAction('remove', item.id.toString(), item.name)}
+                            disabled={item.quantity < (typeof amount === 'string' ? 0 : amount)}
+                            className="flex flex-col items-center justify-center gap-1 bg-rose-50 border-2 border-rose-100 hover:bg-rose-100 text-rose-700 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
+                        >
+                            <Minus className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Ubrat</span>
+                        </button>
+
+                        {/* 3. PŮJČIT */}
                         <button 
                             onClick={() => handleAction('borrow', item.id.toString(), item.name)}
                             disabled={item.quantity < (typeof amount === 'string' ? 0 : amount)}
-                            className="flex flex-col items-center justify-center gap-1 bg-orange-50 border-2 border-orange-100 hover:bg-orange-100 text-orange-600 p-3 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
+                            className="flex flex-col items-center justify-center gap-1 bg-orange-50 border-2 border-orange-100 hover:bg-orange-100 text-orange-600 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >
-                            <ArrowUpRight className="w-6 h-6 stroke-[3px]" />
-                            <span className="text-[10px] font-black uppercase">Půjčit</span>
+                            <ArrowUpRight className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Půjčit</span>
                         </button>
 
+                        {/* 4. VRÁTIT */}
                         <button 
                             onClick={() => handleAction('return', item.id.toString(), item.name)}
                             disabled={myLoanQty < (typeof amount === 'string' ? 0 : amount)} 
-                            className="flex flex-col items-center justify-center gap-1 bg-blue-50 border-2 border-blue-100 hover:bg-blue-100 text-blue-600 p-3 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
+                            className="flex flex-col items-center justify-center gap-1 bg-blue-50 border-2 border-blue-100 hover:bg-blue-100 text-blue-600 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >
-                            <ArrowDownLeft className="w-6 h-6 stroke-[3px]" />
-                            <span className="text-[10px] font-black uppercase">Vrátit</span>
+                            <ArrowDownLeft className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Vrátit</span>
                         </button>
                     </div>
+
+                    {/* Zde byl kód pro mazání (Trash2) - ten jsem kompletně odstranil, jak jsi chtěl. */}
 
                       {item.loans.length > 0 && (
                         <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
@@ -385,14 +427,6 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                             </p>
                         </div>
                       )}
-
-                    <div className="flex justify-center mt-2">
-                        <button onClick={() => handleDelete(item.id.toString())} className="text-red-400 text-xs font-bold flex items-center gap-1 hover:text-red-600 transition-colors px-3 py-2 rounded-lg hover:bg-red-50">
-                            <Trash2 className="w-3 h-3" />
-                            Smazat položku
-                        </button>
-                    </div>
-
                 </div>
               )}
             </div>

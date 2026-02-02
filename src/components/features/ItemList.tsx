@@ -1,8 +1,18 @@
 'use client'
 
-import { useState } from "react";
-import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check } from "lucide-react";
-import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem, createItem } from "@/actions/items";
+import { useState, useMemo } from "react"; // Přidat useMemo
+import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check, Box } from "lucide-react"; // Přidat Box ikonu
+import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem } from "@/actions/items";
+import AddItemForm from "./AddItemForm";
+
+
+// Pomocná funkce na odstranění diakritiky a převod na malá písmena
+function normalizeText(text: string) {
+  return text
+    .normalize("NFD") // Rozloží znaky (např. "č" na "c" + háček)
+    .replace(/[\u0300-\u036f]/g, "") // Odstraní ty háčky/čárky
+    .toLowerCase(); // Převede na malá
+}
 
 type Loan = { 
   id: string | number; 
@@ -29,12 +39,25 @@ const SORT_OPTIONS = [
 
 export default function ItemList({ initialItems, currentUser }: { initialItems: Item[], currentUser: string }) {
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("available"); 
+  const [sortBy, setSortBy] = useState("available");
+  
+  // NOVÉ: Stav pro vybraný box (filtr)
+  const [selectedBox, setSelectedBox] = useState<string | null>(null);
+  
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [amount, setAmount] = useState<number | string>(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // --- NOVÉ: Získání unikátních boxů ---
+  // Projdeme všechny položky, vezmeme boxy, odstraníme duplicity a null hodnoty, seřadíme
+  const uniqueBoxes = useMemo(() => {
+    const boxes = initialItems
+      .map(i => i.box)
+      .filter((b): b is string => typeof b === 'string' && b.trim() !== ""); // jen stringy, ne prázdné
+    return Array.from(new Set(boxes)).sort();
+  }, [initialItems]);
 
   // --- LOGIKA ---
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,15 +81,31 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     setAmount(newVal);
   };
 
+// Původní searchedItems nahraď tímto:
   const searchedItems = initialItems.filter((item) => {
-    return item.name.toLowerCase().includes(search.toLowerCase()) || 
-           (item.box && item.box.toLowerCase().includes(search.toLowerCase()));
+    // Pokud není nic v hledání, vratíme vše
+    if (!search) return true;
+
+    const normalizedSearch = normalizeText(search);
+    const normalizedName = normalizeText(item.name);
+
+    // 1. Hledáme POUZE v názvu (box ignorujeme)
+    // 2. Používáme .startsWith místo .includes (hledá jen od začátku, ne uprostřed)
+    return normalizedName.startsWith(normalizedSearch);
   });
 
   const filteredItems = searchedItems.filter((item) => {
+    // 1. Filtr "Moje položky"
     if (sortBy === 'my_items') {
-        return item.loans.some(l => l.borrower_name.toLowerCase() === currentUser.toLowerCase() && l.quantity > 0);
+        const hasMyLoan = item.loans.some(l => l.borrower_name.toLowerCase() === currentUser.toLowerCase() && l.quantity > 0);
+        if (!hasMyLoan) return false;
     }
+
+    // 2. NOVÉ: Filtr podle boxu
+    if (selectedBox) {
+        if (item.box !== selectedBox) return false;
+    }
+
     return true;
   });
 
@@ -90,12 +129,23 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     }
   });
 
-  const handleAction = async (actionType: 'add' | 'borrow' | 'return', itemId: string, itemName: string) => {
+  const handleAction = async (actionType: 'add' | 'remove' | 'borrow' | 'return', itemId: string, itemName: string) => {
     const finalAmount = typeof amount === 'string' ? parseInt(amount) : amount;
     if (!finalAmount || finalAmount <= 0) return alert("Množství musí být větší než 0");
+
+    // === NOVÉ: Potvrzovací dialogy pro skladové pohyby ===
+    if (actionType === 'add') {
+        if (!confirm(`Opravdu chceš PŘIDAT ${finalAmount} ks k položce "${itemName}"?`)) return;
+    }
+    if (actionType === 'remove') {
+        if (!confirm(`Opravdu chceš ODEBRAT ${finalAmount} ks od položky "${itemName}"?`)) return;
+    }
+    // ====================================================
+
     setIsProcessing(true);
     try {
       if (actionType === 'add') await updateItemQuantity(itemId, finalAmount);
+      else if (actionType === 'remove') await updateItemQuantity(itemId, -finalAmount); // Posíláme záporné číslo
       else if (actionType === 'borrow') await borrowItems(currentUser, { [itemId]: finalAmount });
       else if (actionType === 'return') await returnItemsFromBorrower(currentUser, { [itemId]: finalAmount });
       setAmount(1);
@@ -120,59 +170,24 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     else { setExpandedId(id); setAmount(1); }
   };
 
-  // --- RENDER ---
-  if (isAdding) {
-     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-             <div className="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in">
-                <h2 className="font-bold text-xl mb-4 text-slate-800">Nová položka</h2>
-                <form action={async (fd) => { setIsProcessing(true); await createItem(fd); setIsProcessing(false); setIsAdding(false); }} className="space-y-4">
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Název</label>
-                        <input name="name" autoFocus placeholder="Např. Vrtačka" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" required />
-                    </div>
-                    <div className="flex gap-2">
-                        <div className="w-1/3">
-                            <label className="text-xs font-bold text-slate-400 uppercase ml-1">Box</label>
-                            <input name="box" placeholder="A1" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div className="w-2/3">
-                            <label className="text-xs font-bold text-slate-400 uppercase ml-1">Počet ks</label>
-                            <input 
-                                name="quantity" 
-                                type="number" 
-                                placeholder="0" 
-                                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                            />
-                        </div>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                        <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">Zrušit</button>
-                        <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Uložit</button>
-                    </div>
-                </form>
-             </div>
-        </div>
-     );
-  }
-
   return (
     <div className="relative">
       {isProcessing && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-l z-[70] flex items-center justify-center animate-in fade-in">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center animate-in fade-in">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
         </div>
       )}
 
-      {/* === HLAVNÍ LIŠTA (MASSIVE & SOLID) === 
-          Změny:
-          1. pt-10 pb-6: Výrazně větší padding nahoře a dole -> lišta je vyšší.
-          2. h-[60px]: Zvýšená výška vnitřních prvků (inputů, tlačítek).
-          3. bg-[#F1F5F9]: Pevné pozadí. Jelikož je sticky top-0 a má padding, všechno co scrolluje nahoru se schová "do paddingu" a zmizí.
-      */}
-      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-5 pb-5">
-          
-          <div className="flex gap-2 items-stretch h-[65px]">
+      {/* Předáváme seznam existujících boxů do formuláře */}
+      <AddItemForm 
+        isOpen={isAdding} 
+        onClose={() => setIsAdding(false)} 
+        existingBoxes={uniqueBoxes} 
+      />
+
+      {/* === HLAVNÍ LIŠTA === */}
+      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-5 pb-2">
+          <div className="flex gap-2 items-stretch h-[65px] mb-3">
             {/* HLEDÁNÍ */}
             <div className="relative flex-1 shadow-2xl rounded-2xl bg-white border-2 border-transparent focus-within:border-blue-100 transition-all">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -184,7 +199,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
               />
             </div>
 
-            {/* FILTR */}
+            {/* FILTR (Řazení) */}
             <div className="relative">
                 <button 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -227,6 +242,41 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 <Plus className="w-7 h-7 stroke-[3px]" />
             </button>
           </div>
+
+          {/* === NOVÉ: HORIZONTÁLNÍ FILTR BOXŮ === */}
+          {uniqueBoxes.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+                {/* Tlačítko Vše */}
+                <button
+                    onClick={() => setSelectedBox(null)}
+                    className={`
+                        px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors border
+                        ${selectedBox === null 
+                            ? 'bg-slate-800 text-white border-slate-800' 
+                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}
+                    `}
+                >
+                    Vše
+                </button>
+                
+                {/* Tlačítka jednotlivých boxů */}
+                {uniqueBoxes.map(box => (
+                    <button
+                        key={box}
+                        onClick={() => setSelectedBox(selectedBox === box ? null : box)}
+                        className={`
+                            px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-colors border
+                            ${selectedBox === box 
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200' 
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}
+                        `}
+                    >
+                        <Box className="w-3 h-3" />
+                        {box}
+                    </button>
+                ))}
+            </div>
+          )}
       </div>
 
       {/* SEZNAM POLOŽEK */}
@@ -295,59 +345,88 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                             <Plus className="w-5 h-5 text-slate-600" />
                         </button>
                     </div>
-
-                    <div className="grid grid-cols-3 gap-2 mb-6">
+                     <div className="grid grid-cols-4 gap-2 mb-6">
+                        {/* 1. PŘIDAT */}
                         <button 
                             onClick={() => handleAction('add', item.id.toString(), item.name)}
-                            className="flex flex-col items-center justify-center gap-1 bg-emerald-50 border-2 border-emerald-100 hover:bg-emerald-100 text-emerald-700 p-3 rounded-xl transition-colors active:scale-95"
+                            className="flex flex-col items-center justify-center gap-1 bg-emerald-50 border-2 border-emerald-100 hover:bg-emerald-100 text-emerald-700 p-2 rounded-xl transition-colors active:scale-95"
                         >
-                            <Plus className="w-6 h-6 stroke-[3px]" />
-                            <span className="text-[10px] font-black uppercase">Přidat</span>
+                            <Plus className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Přidat</span>
                         </button>
 
+                        {/* 2. UBRAT (NOVÉ) */}
+                        <button 
+                            onClick={() => handleAction('remove', item.id.toString(), item.name)}
+                            disabled={item.quantity < (typeof amount === 'string' ? 0 : amount)}
+                            className="flex flex-col items-center justify-center gap-1 bg-rose-50 border-2 border-rose-100 hover:bg-rose-100 text-rose-700 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
+                        >
+                            <Minus className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Ubrat</span>
+                        </button>
+
+                        {/* 3. PŮJČIT */}
                         <button 
                             onClick={() => handleAction('borrow', item.id.toString(), item.name)}
                             disabled={item.quantity < (typeof amount === 'string' ? 0 : amount)}
-                            className="flex flex-col items-center justify-center gap-1 bg-orange-50 border-2 border-orange-100 hover:bg-orange-100 text-orange-600 p-3 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
+                            className="flex flex-col items-center justify-center gap-1 bg-orange-50 border-2 border-orange-100 hover:bg-orange-100 text-orange-600 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >
-                            <ArrowUpRight className="w-6 h-6 stroke-[3px]" />
-                            <span className="text-[10px] font-black uppercase">Půjčit</span>
+                            <ArrowUpRight className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Půjčit</span>
                         </button>
 
+                        {/* 4. VRÁTIT */}
                         <button 
                             onClick={() => handleAction('return', item.id.toString(), item.name)}
                             disabled={myLoanQty < (typeof amount === 'string' ? 0 : amount)} 
-                            className="flex flex-col items-center justify-center gap-1 bg-blue-50 border-2 border-blue-100 hover:bg-blue-100 text-blue-600 p-3 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
+                            className="flex flex-col items-center justify-center gap-1 bg-blue-50 border-2 border-blue-100 hover:bg-blue-100 text-blue-600 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >
-                            <ArrowDownLeft className="w-6 h-6 stroke-[3px]" />
-                            <span className="text-[10px] font-black uppercase">Vrátit</span>
+                            <ArrowDownLeft className="w-5 h-5 stroke-[3px]" />
+                            <span className="text-[9px] font-black uppercase">Vrátit</span>
                         </button>
                     </div>
 
-                    {item.loans.length > 0 && (
+                    {/* Zde byl kód pro mazání (Trash2) - ten jsem kompletně odstranil, jak jsi chtěl. */}
+
+                      {item.loans.length > 0 && (
                         <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
                             <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Aktuální výpůjčky</h4>
                             <div className="flex flex-wrap gap-2">
                                 {item.loans.map(loan => {
+                                    // Zjistíme, jestli je to moje výpůjčka
                                     const isMe = loan.borrower_name.toLowerCase() === currentUser.toLowerCase();
+                                    
                                     return (
-                                        <div key={loan.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border ${isMe ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                        <button 
+                                            key={loan.id} 
+                                            type="button"
+                                            // === ZMĚNA 1: Akce se provede JEN když jsem to já ===
+                                            onClick={() => {
+                                                if (isMe) setAmount(loan.quantity);
+                                            }}
+                                            // Vypneme interakci pro cizí položky, aby to nemátlo
+                                            disabled={!isMe} 
+                                            title={isMe ? "Kliknutím nastavíš toto množství" : "Cizí výpůjčka"}
+                                            // === ZMĚNA 2: Styly rozlišují moje (aktivní) vs cizí (statické) ===
+                                            className={`
+                                                flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border transition-all
+                                                ${isMe 
+                                                    ? 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 hover:border-blue-300 cursor-pointer active:scale-90' 
+                                                    : 'bg-white text-slate-400 border-slate-100 cursor-default opacity-80'
+                                                }
+                                            `}
+                                        >
                                             <User className="w-3 h-3" />
                                             {loan.borrower_name}: {loan.quantity}ks
-                                        </div>
+                                        </button>
                                     )
                                 })}
                             </div>
+                            <p className="text-[10px] text-slate-400 mt-2 font-medium italic">
+                                Tip: Kliknutím na Tvou jmenovku rychle nastavíš počet kusů.
+                            </p>
                         </div>
-                    )}
-
-                    <div className="flex justify-center mt-2">
-                        <button onClick={() => handleDelete(item.id.toString())} className="text-red-400 text-xs font-bold flex items-center gap-1 hover:text-red-600 transition-colors px-3 py-2 rounded-lg hover:bg-red-50">
-                            <Trash2 className="w-3 h-3" />
-                            Smazat položku
-                        </button>
-                    </div>
-
+                      )}
                 </div>
               )}
             </div>

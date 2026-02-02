@@ -346,22 +346,45 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                         </button>
                     </div>
 
-                    {item.loans.length > 0 && (
+                      {item.loans.length > 0 && (
                         <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
                             <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Aktuální výpůjčky</h4>
                             <div className="flex flex-wrap gap-2">
                                 {item.loans.map(loan => {
+                                    // Zjistíme, jestli je to moje výpůjčka
                                     const isMe = loan.borrower_name.toLowerCase() === currentUser.toLowerCase();
+                                    
                                     return (
-                                        <div key={loan.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border ${isMe ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                        <button 
+                                            key={loan.id} 
+                                            type="button"
+                                            // === ZMĚNA 1: Akce se provede JEN když jsem to já ===
+                                            onClick={() => {
+                                                if (isMe) setAmount(loan.quantity);
+                                            }}
+                                            // Vypneme interakci pro cizí položky, aby to nemátlo
+                                            disabled={!isMe} 
+                                            title={isMe ? "Kliknutím nastavíš toto množství" : "Cizí výpůjčka"}
+                                            // === ZMĚNA 2: Styly rozlišují moje (aktivní) vs cizí (statické) ===
+                                            className={`
+                                                flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold border transition-all
+                                                ${isMe 
+                                                    ? 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 hover:border-blue-300 cursor-pointer active:scale-90' 
+                                                    : 'bg-white text-slate-400 border-slate-100 cursor-default opacity-80'
+                                                }
+                                            `}
+                                        >
                                             <User className="w-3 h-3" />
                                             {loan.borrower_name}: {loan.quantity}ks
-                                        </div>
+                                        </button>
                                     )
                                 })}
                             </div>
+                            <p className="text-[10px] text-slate-400 mt-2 font-medium italic">
+                                Tip: Kliknutím na Tvou jmenovku rychle nastavíš počet kusů.
+                            </p>
                         </div>
-                    )}
+                      )}
 
                     <div className="flex justify-center mt-2">
                         <button onClick={() => handleDelete(item.id.toString())} className="text-red-400 text-xs font-bold flex items-center gap-1 hover:text-red-600 transition-colors px-3 py-2 rounded-lg hover:bg-red-50">

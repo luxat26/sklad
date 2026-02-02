@@ -1,16 +1,16 @@
 'use client'
 
 import { createItem } from "@/actions/items";
-import { X, Loader2 } from "lucide-react"; // Přidán Loader2 pro načítání
+import { X, Loader2 } from "lucide-react";
 import { useState, useRef } from "react";
 
-// Definujeme, co tato komponenta očekává od rodiče
 type AddItemFormProps = {
   isOpen: boolean;
   onClose: () => void;
+  existingBoxes: string[]; // <--- NOVÉ: přijímáme seznam existujících boxů
 };
 
-export default function AddItemForm({ isOpen, onClose }: AddItemFormProps) {
+export default function AddItemForm({ isOpen, onClose, existingBoxes }: AddItemFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -19,7 +19,7 @@ export default function AddItemForm({ isOpen, onClose }: AddItemFormProps) {
     try {
       await createItem(formData);
       formRef.current?.reset();
-      onClose(); // Po úspěchu zavřeme okno
+      onClose(); 
     } catch (e) {
       console.error("Chyba při ukládání:", e);
       alert("Nepodařilo se uložit položku.");
@@ -55,11 +55,20 @@ export default function AddItemForm({ isOpen, onClose }: AddItemFormProps) {
           <div className="flex gap-2">
             <div className="w-1/3">
               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Box</label>
+              {/* === ZMĚNA ZDE === */}
               <input 
                 name="box" 
+                list="box-options" // Propojení s datalist
+                autoComplete="off" // Vypneme prohlížečový autocomplete, aby nerušil náš
                 className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" 
                 placeholder="A1" 
               />
+              <datalist id="box-options">
+                {existingBoxes.map((box) => (
+                  <option key={box} value={box} />
+                ))}
+              </datalist>
+              {/* =============== */}
             </div>
             <div className="w-2/3">
               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Počet ks</label>

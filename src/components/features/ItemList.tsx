@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from "react";
-import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check } from "lucide-react";
+import { useState, useMemo } from "react"; // Přidat useMemo
+import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check, Box } from "lucide-react"; // Přidat Box ikonu
 import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem } from "@/actions/items";
-import AddItemForm from "./AddItemForm"; // <--- Nový import
+import AddItemForm from "./AddItemForm";
 
 type Loan = { 
   id: string | number; 
@@ -30,12 +30,25 @@ const SORT_OPTIONS = [
 
 export default function ItemList({ initialItems, currentUser }: { initialItems: Item[], currentUser: string }) {
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("available"); 
+  const [sortBy, setSortBy] = useState("available");
+  
+  // NOVÉ: Stav pro vybraný box (filtr)
+  const [selectedBox, setSelectedBox] = useState<string | null>(null);
+  
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [amount, setAmount] = useState<number | string>(1);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false); // Toto ovládá viditelnost formuláře
+  const [isAdding, setIsAdding] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // --- NOVÉ: Získání unikátních boxů ---
+  // Projdeme všechny položky, vezmeme boxy, odstraníme duplicity a null hodnoty, seřadíme
+  const uniqueBoxes = useMemo(() => {
+    const boxes = initialItems
+      .map(i => i.box)
+      .filter((b): b is string => typeof b === 'string' && b.trim() !== ""); // jen stringy, ne prázdné
+    return Array.from(new Set(boxes)).sort();
+  }, [initialItems]);
 
   // --- LOGIKA ---
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,9 +78,17 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   });
 
   const filteredItems = searchedItems.filter((item) => {
+    // 1. Filtr "Moje položky"
     if (sortBy === 'my_items') {
-        return item.loans.some(l => l.borrower_name.toLowerCase() === currentUser.toLowerCase() && l.quantity > 0);
+        const hasMyLoan = item.loans.some(l => l.borrower_name.toLowerCase() === currentUser.toLowerCase() && l.quantity > 0);
+        if (!hasMyLoan) return false;
     }
+
+    // 2. NOVÉ: Filtr podle boxu
+    if (selectedBox) {
+        if (item.box !== selectedBox) return false;
+    }
+
     return true;
   });
 
@@ -121,25 +142,24 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     else { setExpandedId(id); setAmount(1); }
   };
 
-  // --- RENDER ---
-  // Poznámka: Zde jsme odstranili ten velký blok if (isAdding) return ..., 
-  // místo toho renderujeme AddItemForm jako komponentu na konci.
-
   return (
     <div className="relative">
-      {/* Loading overlay pro hlavní stránku */}
       {isProcessing && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center animate-in fade-in">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
         </div>
       )}
 
-      {/* Komponenta pro přidání nové položky */}
-      <AddItemForm isOpen={isAdding} onClose={() => setIsAdding(false)} />
+      {/* Předáváme seznam existujících boxů do formuláře */}
+      <AddItemForm 
+        isOpen={isAdding} 
+        onClose={() => setIsAdding(false)} 
+        existingBoxes={uniqueBoxes} 
+      />
 
       {/* === HLAVNÍ LIŠTA === */}
-      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-5 pb-5">
-          <div className="flex gap-2 items-stretch h-[65px]">
+      <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-5 pb-2">
+          <div className="flex gap-2 items-stretch h-[65px] mb-3">
             {/* HLEDÁNÍ */}
             <div className="relative flex-1 shadow-2xl rounded-2xl bg-white border-2 border-transparent focus-within:border-blue-100 transition-all">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -151,7 +171,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
               />
             </div>
 
-            {/* FILTR */}
+            {/* FILTR (Řazení) */}
             <div className="relative">
                 <button 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -186,7 +206,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 )}
             </div>
             
-            {/* TLAČÍTKO PŘIDAT - Otevírá AddItemForm */}
+            {/* TLAČÍTKO PŘIDAT */}
             <button 
                 onClick={() => setIsAdding(true)} 
                 className="bg-blue-600 hover:bg-blue-700 text-white w-[60px] h-[60px] rounded-2xl shadow-2xl shadow-blue-200 active:scale-95 transition-all flex items-center justify-center shrink-0"
@@ -194,6 +214,41 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 <Plus className="w-7 h-7 stroke-[3px]" />
             </button>
           </div>
+
+          {/* === NOVÉ: HORIZONTÁLNÍ FILTR BOXŮ === */}
+          {uniqueBoxes.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+                {/* Tlačítko Vše */}
+                <button
+                    onClick={() => setSelectedBox(null)}
+                    className={`
+                        px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors border
+                        ${selectedBox === null 
+                            ? 'bg-slate-800 text-white border-slate-800' 
+                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}
+                    `}
+                >
+                    Vše
+                </button>
+                
+                {/* Tlačítka jednotlivých boxů */}
+                {uniqueBoxes.map(box => (
+                    <button
+                        key={box}
+                        onClick={() => setSelectedBox(selectedBox === box ? null : box)}
+                        className={`
+                            px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-colors border
+                            ${selectedBox === box 
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200' 
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}
+                        `}
+                    >
+                        <Box className="w-3 h-3" />
+                        {box}
+                    </button>
+                ))}
+            </div>
+          )}
       </div>
 
       {/* SEZNAM POLOŽEK */}

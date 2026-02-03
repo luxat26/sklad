@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useMemo } from "react";
-// Přidány ikony Pencil, Check, X
-import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Trash2, Filter, Check, Box, Pencil, X } from "lucide-react"; 
-import { borrowItems, returnItemsFromBorrower, updateItemQuantity, deleteItem, updateItemDetails } from "@/actions/items"; // Import nové funkce updateItemDetails
+import { Search, Plus, Minus, User, Loader2, ChevronDown, ChevronUp, PackagePlus, ArrowUpRight, ArrowDownLeft, Filter, Check, Box, Pencil, X } from "lucide-react"; 
+import { borrowItems, returnItemsFromBorrower, updateItemQuantity, updateItemDetails } from "@/actions/items"; // deleteItem odstraněn, není tlačítko
 import AddItemForm from "./AddItemForm";
 
-// ... (typy Item a Loan zůstávají stejné) ...
 type Loan = { 
   id: string | number; 
   borrower_name: string; 
@@ -49,6 +47,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ name: "", box: "" });
 
+  // --- Výpočet unikátních boxů ---
   const uniqueBoxes = useMemo(() => {
     const boxes = initialItems
       .map(i => i.box)
@@ -76,7 +75,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     setIsProcessing(false);
   };
 
-  // --- OSTATNÍ LOGIKA (amount, search, actions...) ---
+  // --- LOGIKA MNOŽSTVÍ ---
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     if (val === "") { setAmount(""); return; }
@@ -94,11 +93,20 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     setAmount(newVal);
   };
 
+// --- FILTROVÁNÍ ---
   const searchedItems = initialItems.filter((item) => {
     if (!search) return true;
-    const normalizedSearch = normalizeText(search);
+    
+    // Rozdělíme hledaný text na slova (kdyby uživatel hledal "dreveny luk")
+    const searchTerms = normalizeText(search).split(" ").filter(t => t.length > 0);
     const normalizedName = normalizeText(item.name);
-    return normalizedName.startsWith(normalizedSearch);
+
+    // Položka musí obsahovat VŠECHNA hledaná slova
+    return searchTerms.every(term => {
+        // Hledané slovo musí být buď na úplném začátku názvu...
+        // ...nebo musí následovat po mezeře (tzn. je to začátek nějakého slova uvnitř)
+        return normalizedName.startsWith(term) || normalizedName.includes(" " + term);
+    });
   });
 
   const filteredItems = searchedItems.filter((item) => {
@@ -127,6 +135,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
     }
   });
 
+  // --- AKCE (S POTVRZENÍM) ---
   const handleAction = async (actionType: 'add' | 'remove' | 'borrow' | 'return', itemId: string, itemName: string) => {
     const finalAmount = typeof amount === 'string' ? parseInt(amount) : amount;
     if (!finalAmount || finalAmount <= 0) return alert("Množství musí být větší než 0");
@@ -168,10 +177,13 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
       {/* HLAVNÍ LIŠTA */}
       <div className="sticky top-0 z-50 bg-[#F1F5F9] pt-5 pb-2">
           <div className="flex gap-2 items-stretch h-[65px] mb-3">
+            {/* HLEDÁNÍ */}
             <div className="relative flex-1 shadow-2xl rounded-2xl bg-white border-2 border-transparent focus-within:border-blue-100 transition-all">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input placeholder="Hledat..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-11 pr-4 h-full bg-transparent border-none rounded-2xl text-base font-medium focus:outline-none placeholder:text-slate-400 text-slate-800" />
             </div>
+            
+            {/* FILTR (DROPDOWN) */}
             <div className="relative">
                 <button onClick={() => setIsDropdownOpen(!isDropdownOpen)} className="h-full flex items-center gap-2 px-4 bg-white text-slate-700 shadow-2xl rounded-2xl transition-all active:scale-95 hover:bg-slate-50 border-2 border-transparent hover:border-slate-100">
                    {sortBy === 'my_items' ? <User className="w-5 h-5 text-slate-700" /> : <Filter className="w-5 h-5 text-slate-700" />}
@@ -192,11 +204,14 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                     </>
                 )}
             </div>
+
+            {/* PŘIDAT */}
             <button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700 text-white w-[60px] h-[60px] rounded-2xl shadow-2xl shadow-blue-200 active:scale-95 transition-all flex items-center justify-center shrink-0">
                 <Plus className="w-7 h-7 stroke-[3px]" />
             </button>
           </div>
 
+          {/* FILTR BOXŮ */}
           {uniqueBoxes.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                 <button onClick={() => setSelectedBox(null)} className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors border ${selectedBox === null ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}`}>Vše</button>
@@ -292,7 +307,6 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                     ) : (
                         // Tlačítko EDITOVAT a ŠIPKA
                         <>
-                            {/* Tlačítko Edit (zobrazí se jen když není expanded, nebo klidně vždy, záleží na preferenci. Tady ho dávám vždy) */}
                             <button 
                                 onClick={(e) => startEdit(e, item)} 
                                 className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-500 transition-colors"
@@ -300,7 +314,6 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                                 <Pencil className="w-4 h-4" />
                             </button>
                             
-                            {/* Šipka rozbalení */}
                             <div className="p-1">
                                 {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                             </div>
@@ -309,11 +322,12 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                 </div>
               </div>
 
-              {/* === ROZBALENÝ OBSAH (beze změny) === */}
+              {/* === ROZBALENÝ OBSAH === */}
               {isExpanded && !isEditing && (
                 <div className="px-4 pb-4 animate-in slide-in-from-top-2">
                     <div className="h-px bg-slate-100 w-full mb-4"></div>
 
+                    {/* Input množství */}
                     <div className="flex items-center gap-3 mb-4">
                         <button onClick={() => updateAmountByButton(-1)} className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-200 active:scale-90 transition-transform hover:bg-slate-100">
                             <Minus className="w-5 h-5 text-slate-600" />
@@ -329,6 +343,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                         </button>
                     </div>
 
+                    {/* Akční tlačítka (4 sloupce) */}
                     <div className="grid grid-cols-4 gap-2 mb-6">
                         <button onClick={() => handleAction('add', item.id.toString(), item.name)} className="flex flex-col items-center justify-center gap-1 bg-emerald-50 border-2 border-emerald-100 hover:bg-emerald-100 text-emerald-700 p-2 rounded-xl transition-colors active:scale-95">
                             <Plus className="w-5 h-5 stroke-[3px]" />
@@ -348,6 +363,7 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                         </button>
                     </div>
 
+                    {/* Výpůjčky + Tip (ZDE BYLA CHYBA, TIP VRÁCEN) */}
                     {item.loans.length > 0 && (
                         <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
                             <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Aktuální výpůjčky</h4>
@@ -362,6 +378,9 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
                                     )
                                 })}
                             </div>
+                            <p className="text-[10px] text-slate-400 mt-2 font-medium italic">
+                                Tip: Kliknutím na Tvou jmenovku rychle nastavíš počet kusů.
+                            </p>
                         </div>
                     )}
                 </div>
@@ -369,6 +388,12 @@ export default function ItemList({ initialItems, currentUser }: { initialItems: 
             </div>
           );
         })}
+
+        {sortedItems.length === 0 && (
+            <div className="text-center py-10 text-slate-400 font-medium animate-in fade-in">
+                {sortBy === 'my_items' ? 'Nemáš žádné výpůjčky 👍' : 'Nic se nenašlo 👻'}
+            </div>
+        )}
       </div>
     </div>
   );

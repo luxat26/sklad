@@ -136,3 +136,26 @@ export async function returnItemsFromBorrower(borrowerName: string, returnCart: 
   revalidatePath('/');
   return { success: true };
 }
+
+// ... existující importy ...
+
+export async function updateItemDetails(itemId: string, name: string, box: string) {
+  const supabase = await createClient();
+  
+  if (!name || name.trim().length === 0) {
+      return { error: "Název nesmí být prázdný" };
+  }
+
+  const { error } = await supabase
+    .from('items')
+    .update({ 
+        name, 
+        box, 
+        updated_at: new Date().toISOString() 
+    })
+    .eq('id', itemId);
+
+  if (error) return { error: error.message };
+  revalidatePath('/');
+  return { success: true };
+}

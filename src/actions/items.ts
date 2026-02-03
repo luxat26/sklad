@@ -10,6 +10,7 @@ export async function createItem(formData: FormData) {
   const name = formData.get("name") as string;
   const box = formData.get("box") as string;
   const quantity = parseInt(formData.get("quantity") as string) || 0;
+  const note = formData.get("note") as string; // <--- NOVÉ
 
   if (!name) return { error: "Název je povinný" };
 
@@ -139,8 +140,7 @@ export async function returnItemsFromBorrower(borrowerName: string, returnCart: 
 
 // ... existující importy ...
 
-export async function updateItemDetails(itemId: string, name: string, box: string) {
-  const supabase = await createClient();
+export async function updateItemDetails(itemId: string, name: string, box: string, note: string) {  const supabase = await createClient();
   
   if (!name || name.trim().length === 0) {
       return { error: "Název nesmí být prázdný" };
@@ -151,6 +151,7 @@ export async function updateItemDetails(itemId: string, name: string, box: strin
     .update({ 
         name, 
         box, 
+        note,
         updated_at: new Date().toISOString() 
     })
     .eq('id', itemId);

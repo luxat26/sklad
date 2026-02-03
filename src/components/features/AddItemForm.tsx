@@ -7,7 +7,7 @@ import { useState, useRef } from "react";
 type AddItemFormProps = {
   isOpen: boolean;
   onClose: () => void;
-  existingBoxes: string[]; // <--- NOVÉ: přijímáme seznam existujících boxů
+  existingBoxes: string[];
 };
 
 export default function AddItemForm({ isOpen, onClose, existingBoxes }: AddItemFormProps) {
@@ -41,6 +41,7 @@ export default function AddItemForm({ isOpen, onClose, existingBoxes }: AddItemF
         </div>
         
         <form action={clientAction} ref={formRef} className="space-y-4">
+          {/* NÁZEV */}
           <div>
             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Název</label>
             <input 
@@ -52,14 +53,14 @@ export default function AddItemForm({ isOpen, onClose, existingBoxes }: AddItemF
             />
           </div>
           
+          {/* BOX A MNOŽSTVÍ */}
           <div className="flex gap-2">
             <div className="w-1/3">
               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Box</label>
-              {/* === ZMĚNA ZDE === */}
               <input 
                 name="box" 
-                list="box-options" // Propojení s datalist
-                autoComplete="off" // Vypneme prohlížečový autocomplete, aby nerušil náš
+                list="box-options" 
+                autoComplete="off" 
                 className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" 
                 placeholder="A1" 
               />
@@ -68,7 +69,6 @@ export default function AddItemForm({ isOpen, onClose, existingBoxes }: AddItemF
                   <option key={box} value={box} />
                 ))}
               </datalist>
-              {/* =============== */}
             </div>
             <div className="w-2/3">
               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Počet ks</label>
@@ -80,6 +80,18 @@ export default function AddItemForm({ isOpen, onClose, existingBoxes }: AddItemF
               />
             </div>
           </div>
+
+          {/* === NOVÉ: POZNÁMKA === */}
+          <div>
+             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Poznámka (volitelné)</label>
+             <textarea 
+                name="note" 
+                rows={2}
+                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                placeholder="Např. Vrátit vyčištěné..."
+             />
+          </div>
+          {/* ====================== */}
           
           <div className="flex gap-2 pt-2">
             <button 

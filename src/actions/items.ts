@@ -10,6 +10,7 @@ export async function createItem(formData: FormData) {
   const name = formData.get("name") as string;
   const box = formData.get("box") as string;
   const quantity = parseInt(formData.get("quantity") as string) || 0;
+  const note = formData.get("note") as string; // <--- NOVÉ
 
   if (!name) return { error: "Název je povinný" };
 
@@ -135,4 +136,108 @@ export async function returnItemsFromBorrower(borrowerName: string, returnCart: 
 
   revalidatePath('/');
   return { success: true };
+}
+
+// ... existující importy ...
+
+export async function updateItemDetails(itemId: string, name: string, box: string, note: string) {  const supabase = await createClient();
+  
+  if (!name || name.trim().length === 0) {
+      return { error: "Název nesmí být prázdný" };
+  }
+
+  const { error } = await supabase
+    .from('items')
+    .update({ 
+        name, 
+        box, 
+        note,
+        updated_at: new Date().toISOString() 
+    })
+    .eq('id', itemId);
+
+  if (error) return { error: error.message };
+  revalidatePath('/');
+  return { success: true };
+}
+
+// --- HROMADNÉ AKCE PRO BOXY ---
+
+export async function borrowEntireBox(boxName: string, borrowerName: string) {
+  const supabase = await createClient();
+
+  // 1. Najdeme všechny položky v tomto boxu
+  const { data: items } = await supabase
+    .from('items')
+    .select('id, name, quantity')
+    .eq('box', boxName);
+
+  if (!items || items.length === 0) return { error: "Box je prázdný nebo neexistuje." };
+
+  // 2. Vytvoříme "košík" jen z toho, co je skladem (quantity > 0)
+  const cart: Record<string, number> = {};
+  let itemsToBorrowCount = 0;
+  const missingItemsNames: string[] = [];
+
+  for (const item of items) {
+    if (item.quantity > 0) {
+      cart[item.id] = item.quantity; // Půjčujeme VŠECHNO co je v danou chvíli skladem
+      itemsToBorrowCount++;
+    } else {
+      missingItemsNames.push(item.name);
+    }
+  }
+
+  if (itemsToBorrowCount === 0) {
+    return { error: "V tomto boxu není momentálně nic k dispozici (vše půjčeno)." };
+  }
+
+  // 3. Použijeme existující funkci pro půjčení
+  await borrowItems(borrowerName, cart);
+
+  // 4. Vrátíme info pro uživatele
+  return { 
+    success: true, 
+    borrowedCount: itemsToBorrowCount, 
+    missingCount: missingItemsNames.length,
+    missingNames: missingItemsNames
+  };
+}
+
+export async function returnEntireBox(boxName: string, borrowerName: string) {
+  const supabase = await createClient();
+
+  // 1. Najdeme položky v boxu
+  const { data: items } = await supabase.from('items').select('id').eq('box', boxName);
+  if (!items || items.length === 0) return { error: "Box nenalezen" };
+  
+  const itemIds = items.map(i => i.id);
+
+  // 2. Najdeme VŠECHNY výpůjčky tohoto uživatele k těmto položkám
+  const { data: loans } = await supabase
+    .from('loans')
+    .select('item_id, quantity')
+    .eq('borrower_name', borrowerName)
+    .in('item_id', itemIds);
+
+  if (!loans || loans.length === 0) {
+    return { error: "Z tohoto boxu nemáš nic půjčeno." };
+  }
+
+  // 3. Vytvoříme "návratový košík"
+  const returnCart: Record<string, number> = {};
+  let totalReturnedItems = 0;
+
+  for (const loan of loans) {
+    // Pozor: Může se stát, že má uživatel více řádků půjček (pokud by se logika změnila), 
+    // ale naše stávající logika mergeuje. Pro jistotu sčítáme.
+    const currentQty = returnCart[loan.item_id] || 0;
+    returnCart[loan.item_id] = currentQty + loan.quantity;
+    totalReturnedItems++;
+  }
+
+  // 4. Zavoláme existující funkci pro vrácení
+  await returnItemsFromBorrower(borrowerName, returnCart);
+
+  return { success: true, returnedCount: totalReturnedItems };
 }

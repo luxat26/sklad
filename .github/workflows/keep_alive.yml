@@ -1,0 +1,19 @@
+name: Keep Supabase Sklad Alive
+
+on:
+  schedule:
+    # Spouští se každé pondělí a čtvrtek ve 12:00 UTC
+    # To bohatě stačí, aby se resetovalo 7denní počítadlo neaktivity
+    - cron: '0 12 * * 1,4'
+  workflow_dispatch: # Umožňuje spustit skript ručně pro test
+
+jobs:
+  ping_supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping 'app_settings' table
+        run: |
+          curl -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/app_settings?select=*" \
+          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -I

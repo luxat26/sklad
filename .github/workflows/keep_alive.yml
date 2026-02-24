@@ -4,7 +4,7 @@ on:
   schedule:
     # Spouští se každé pondělí a čtvrtek ve 12:00 UTC
     # To bohatě stačí, aby se resetovalo 7denní počítadlo neaktivity
-    - cron: '0 12 * * 1,4'
+    - cron: '23 5 * * *'
   workflow_dispatch: # Umožňuje spustit skript ručně pro test
 
 jobs:
